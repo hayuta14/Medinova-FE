@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Script from 'next/script';
 import './globals.css';
 import ClientScripts from '@/components/ClientScripts';
+import MomentScripts from '@/components/MomentScripts';
 
 export const metadata: Metadata = {
   title: 'MEDINOVA - Hospital Website Template',
@@ -44,15 +45,7 @@ export default function RootLayout({
         <Script src="/lib/easing/easing.min.js" strategy="afterInteractive" />
         <Script src="/lib/waypoints/waypoints.min.js" strategy="afterInteractive" />
         <Script src="/lib/owlcarousel/owl.carousel.min.js" strategy="afterInteractive" />
-        <Script src="/lib/tempusdominus/js/moment.min.js" strategy="afterInteractive" />
-        <Script
-          src="/lib/tempusdominus/js/moment-timezone.min.js"
-          strategy="afterInteractive"
-        />
-        <Script
-          src="/lib/tempusdominus/js/tempusdominus-bootstrap-4.min.js"
-          strategy="afterInteractive"
-        />
+        <MomentScripts />
         <Script src="/js/main.js" strategy="afterInteractive" />
         <ClientScripts />
       </body>

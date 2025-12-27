@@ -1,10 +1,60 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { isAuthenticated, getUser, removeToken } from '@/utils/auth';
 
 export default function Navbar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const [authenticated, setAuthenticated] = useState(false);
+  const [user, setUserState] = useState<any>(null);
+
+  useEffect(() => {
+    // Check authentication status on mount and when pathname changes
+    const checkAuth = () => {
+      const auth = isAuthenticated();
+      setAuthenticated(auth);
+      if (auth) {
+        setUserState(getUser());
+      } else {
+        setUserState(null);
+      }
+    };
+    checkAuth();
+    
+    // Listen for storage changes (when token is set/removed in other tabs/components)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'token' || e.key === 'user') {
+        checkAuth();
+      }
+    };
+    
+    // Listen for custom auth-change event (when login/logout happens in same tab)
+    const handleAuthChange = () => {
+      checkAuth();
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('auth-change', handleAuthChange);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('auth-change', handleAuthChange);
+    };
+  }, [pathname]);
+
+  const handleLogout = () => {
+    removeToken();
+    setAuthenticated(false);
+    setUserState(null);
+    // Trigger custom event to update Navbar
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('auth-change'));
+    }
+    router.push('/');
+  };
 
   const isActive = (path: string) => {
     if (path === '/') {
@@ -31,7 +81,7 @@ export default function Navbar() {
             <span className="navbar-toggler-icon"></span>
           </button>
           <div className="collapse navbar-collapse" id="navbarCollapse">
-            <div className="navbar-nav ms-auto py-0">
+            <div className="navbar-nav ms-auto py-0 align-items-center">
               <Link
                 href="/"
                 className={`nav-item nav-link ${isActive('/') && pathname === '/' ? 'active' : ''}`}
@@ -91,6 +141,55 @@ export default function Navbar() {
               >
                 Contact
               </Link>
+              <div className="nav-item dropdown ms-lg-3 mt-3 mt-lg-0">
+                <a
+                  href="#"
+                  className="nav-link dropdown-toggle d-flex align-items-center"
+                  data-bs-toggle="dropdown"
+                  aria-expanded="false"
+                >
+                  <i className="fa fa-user-circle me-2" style={{ fontSize: '24px' }}></i>
+                  {authenticated && user && (
+                    <span className="d-none d-md-inline ms-1">{user.email || user.fullName || 'User'}</span>
+                  )}
+                </a>
+                <div className="dropdown-menu dropdown-menu-end m-0">
+                  {authenticated ? (
+                    <>
+                      {user && (
+                        <div className="dropdown-item-text">
+                          <small className="text-muted">Signed in as</small>
+                          <div className="fw-bold">{user.email || user.fullName || 'User'}</div>
+                        </div>
+                      )}
+                      <div className="dropdown-divider"></div>
+                      <Link href="/profile" className="dropdown-item">
+                        <i className="fa fa-user me-2"></i>Profile
+                      </Link>
+                      <Link href="/medical-history" className="dropdown-item">
+                        <i className="fa fa-history me-2"></i>Medical History
+                      </Link>
+                      <div className="dropdown-divider"></div>
+                      <button
+                        className="dropdown-item"
+                        onClick={handleLogout}
+                        style={{ border: 'none', background: 'none', width: '100%', textAlign: 'left' }}
+                      >
+                        <i className="fa fa-sign-out-alt me-2"></i>Logout
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <Link href="/login" className="dropdown-item">
+                        <i className="fa fa-sign-in-alt me-2"></i>Login
+                      </Link>
+                      <Link href="/signup" className="dropdown-item">
+                        <i className="fa fa-user-plus me-2"></i>Sign Up
+                      </Link>
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </nav>

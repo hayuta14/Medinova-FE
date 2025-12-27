@@ -19,13 +19,44 @@
     });
 
 
-    // Date and time picker
-    $('.date').datetimepicker({
-        format: 'L'
-    });
-    $('.time').datetimepicker({
-        format: 'LT'
-    });
+    // Date and time picker - only initialize if datetimepicker is available
+    function initDateTimePicker() {
+        if ($.fn.datetimepicker) {
+            $('.date').datetimepicker({
+                format: 'L'
+            });
+            $('.time').datetimepicker({
+                format: 'LT'
+            });
+            $('[data-toggle="datetimepicker"]').each(function() {
+                var $this = $(this);
+                if (!$this.data('DateTimePicker')) {
+                    $this.datetimepicker();
+                }
+            });
+        }
+    }
+    
+    // Try to initialize immediately, or wait for tempusdominus to load
+    if ($.fn.datetimepicker) {
+        $(document).ready(initDateTimePicker);
+    } else {
+        // Listen for tempusdominus loaded event
+        $(window).on('tempusdominus-loaded', function() {
+            setTimeout(initDateTimePicker, 100);
+        });
+        
+        // Also retry periodically as fallback
+        var retryCount = 0;
+        var retryInterval = setInterval(function() {
+            if ($.fn.datetimepicker) {
+                initDateTimePicker();
+                clearInterval(retryInterval);
+            } else if (retryCount++ > 50) {
+                clearInterval(retryInterval);
+            }
+        }, 100);
+    }
     
     
     // Back to top button

@@ -179,7 +179,46 @@ export default function DoctorLayout({
                 }
               }}
             >
-              <i className={`fa ${item.icon} me-3`} style={{ width: '20px', textAlign: 'center' }}></i>
+              {item.path === '/doctor/ambulance' ? (
+                <svg 
+                  width="20" 
+                  height="20" 
+                  viewBox="0 0 100 100" 
+                  fill="none" 
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="me-3"
+                  style={{ flexShrink: 0, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.2))' }}
+                >
+                  {/* Thân xe */}
+                  <rect x="18" y="48" width="64" height="32" rx="6" fill="currentColor"/>
+                  {/* Cửa sổ trước */}
+                  <rect x="24" y="54" width="16" height="22" fill="#ffffff" opacity="0.95" rx="2"/>
+                  {/* Cửa sổ giữa */}
+                  <rect x="44" y="54" width="16" height="22" fill="#ffffff" opacity="0.95" rx="2"/>
+                  {/* Cửa sau */}
+                  <rect x="64" y="54" width="12" height="22" fill="#ffffff" opacity="0.95" rx="2"/>
+                  {/* Bánh xe trái */}
+                  <circle cx="32" cy="88" r="9" fill="#1a1a1a"/>
+                  <circle cx="32" cy="88" r="6" fill="#ffffff"/>
+                  <circle cx="32" cy="88" r="3" fill="#1a1a1a"/>
+                  {/* Bánh xe phải */}
+                  <circle cx="68" cy="88" r="9" fill="#1a1a1a"/>
+                  <circle cx="68" cy="88" r="6" fill="#ffffff"/>
+                  <circle cx="68" cy="88" r="3" fill="#1a1a1a"/>
+                  {/* Nóc xe */}
+                  <rect x="28" y="32" width="44" height="22" rx="4" fill="currentColor" opacity="0.9"/>
+                  {/* Dấu thập đỏ trên nóc */}
+                  <rect x="45" y="36" width="10" height="2" fill="#ffffff"/>
+                  <rect x="49" y="32" width="2" height="10" fill="#ffffff"/>
+                  {/* Đèn cảnh báo */}
+                  <circle cx="50" cy="28" r="4" fill="#ffffff"/>
+                  <circle cx="50" cy="28" r="2" fill="currentColor"/>
+                  {/* Cửa sổ nóc */}
+                  <rect x="38" y="38" width="24" height="10" fill="#ffffff" opacity="0.7" rx="2"/>
+                </svg>
+              ) : (
+                <i className={`fa ${item.icon} me-3`} style={{ width: '20px', textAlign: 'center' }}></i>
+              )}
               {sidebarOpen && <span>{item.label}</span>}
               {item.badge === 'hot' && sidebarOpen && (
                 <span className="badge bg-danger ms-auto">Hot</span>

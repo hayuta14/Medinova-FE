@@ -9,8 +9,11 @@ import BackToTop from '@/components/BackToTop';
 export default function EmergencyPage() {
   const [step, setStep] = useState<'initial' | 'location' | 'symptoms' | 'confirm' | 'status'>('initial');
   const [location, setLocation] = useState<string>('');
+  const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(null);
+  const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number }>({ lat: 21.0285, lng: 105.8542 }); // Default to Hanoi
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
   const [emergencyId, setEmergencyId] = useState<string>('');
+  const [address, setAddress] = useState<string>('');
 
   const symptoms = [
     'Chest Pain',
@@ -27,7 +30,20 @@ export default function EmergencyPage() {
     if (step === 'location' && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          setLocation(`${position.coords.latitude}, ${position.coords.longitude}`);
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          setCoordinates({ lat, lng });
+          setMapCenter({ lat, lng });
+          setLocation(`${lat}, ${lng}`);
+          // Reverse geocoding to get address
+          fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+            .then(res => res.json())
+            .then(data => {
+              if (data.display_name) {
+                setAddress(data.display_name);
+              }
+            })
+            .catch(() => {});
         },
         () => {
           setLocation('Location not available');
@@ -35,6 +51,41 @@ export default function EmergencyPage() {
       );
     }
   }, [step]);
+
+  const handleMapClick = (e: any) => {
+    if (e.latlng) {
+      const lat = e.latlng.lat;
+      const lng = e.latlng.lng;
+      setCoordinates({ lat, lng });
+      setLocation(`${lat}, ${lng}`);
+      // Reverse geocoding
+      fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.display_name) {
+            setAddress(data.display_name);
+          }
+        })
+        .catch(() => {});
+    }
+  };
+
+  const handleSearchAddress = () => {
+    if (address) {
+      fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.length > 0) {
+            const lat = parseFloat(data[0].lat);
+            const lng = parseFloat(data[0].lon);
+            setCoordinates({ lat, lng });
+            setMapCenter({ lat, lng });
+            setLocation(`${lat}, ${lng}`);
+          }
+        })
+        .catch(() => {});
+    }
+  };
 
   const handleGetHelp = () => {
     setStep('location');
@@ -92,36 +143,204 @@ export default function EmergencyPage() {
 
           {step === 'location' && (
             <div className="row justify-content-center">
-              <div className="col-lg-6">
+              <div className="col-lg-10">
                 <div className="card shadow">
                   <div className="card-header bg-danger text-white">
-                    <h3 className="mb-0">📍 Your Location</h3>
+                    <h3 className="mb-0">
+                      <i className="fa fa-map-marker-alt me-2"></i>
+                      Your Location
+                    </h3>
                   </div>
                   <div className="card-body">
-                    <div className="mb-3">
-                      <label className="form-label">Current Location (Auto-detected)</label>
-                      <input
-                        type="text"
-                        className="form-control form-control-lg"
-                        value={location}
-                        onChange={(e) => setLocation(e.target.value)}
-                        placeholder="Detecting location..."
-                      />
-                    </div>
-                    <div className="d-grid gap-2">
-                      <button
-                        className="btn btn-danger btn-lg"
-                        onClick={handleLocationConfirm}
-                        disabled={!location}
-                      >
-                        Confirm Location
-                      </button>
-                      <button
-                        className="btn btn-outline-secondary"
-                        onClick={() => setStep('initial')}
-                      >
-                        Back
-                      </button>
+                    <div className="row g-4">
+                      {/* Bản đồ */}
+                      <div className="col-lg-8">
+                        <div className="mb-3">
+                          <label className="form-label fw-bold">
+                            <i className="fa fa-map me-2 text-danger"></i>
+                            Select Location on Map
+                          </label>
+                          <div 
+                            style={{ 
+                              height: '500px', 
+                              width: '100%', 
+                              borderRadius: '8px',
+                              overflow: 'hidden',
+                              border: '2px solid #dc3545',
+                              position: 'relative'
+                            }}
+                            className="position-relative"
+                          >
+                            {/* OpenStreetMap với Leaflet-like interface */}
+                            <iframe
+                              width="100%"
+                              height="100%"
+                              frameBorder="0"
+                              style={{ border: 0 }}
+                              src={`https://www.openstreetmap.org/export/embed.html?bbox=${(coordinates ? coordinates.lng : mapCenter.lng) - 0.01},${(coordinates ? coordinates.lat : mapCenter.lat) - 0.01},${(coordinates ? coordinates.lng : mapCenter.lng) + 0.01},${(coordinates ? coordinates.lat : mapCenter.lat) + 0.01}&layer=mapnik&marker=${coordinates ? `${coordinates.lat},${coordinates.lng}` : `${mapCenter.lat},${mapCenter.lng}`}`}
+                              allowFullScreen
+                            ></iframe>
+                            
+                            {/* Overlay với instructions */}
+                            <div className="position-absolute top-0 start-0 p-2 bg-white rounded m-2 shadow-sm" style={{ zIndex: 10 }}>
+                              <small className="text-muted d-flex align-items-center">
+                                <i className="fa fa-info-circle me-1 text-primary"></i>
+                                <span>Use controls below to set location</span>
+                              </small>
+                            </div>
+
+                            {/* Marker indicator */}
+                            {coordinates && (
+                              <div 
+                                className="position-absolute"
+                                style={{
+                                  top: '50%',
+                                  left: '50%',
+                                  transform: 'translate(-50%, -50%)',
+                                  zIndex: 5,
+                                  pointerEvents: 'none'
+                                }}
+                              >
+                                <i className="fa fa-map-marker-alt text-danger" style={{ fontSize: '40px', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))' }}></i>
+                              </div>
+                            )}
+                          </div>
+                          
+                          <div className="mt-2 d-flex gap-2 flex-wrap">
+                            <button
+                              className="btn btn-sm btn-outline-primary"
+                              onClick={() => {
+                                if (navigator.geolocation) {
+                                  navigator.geolocation.getCurrentPosition(
+                                    (position) => {
+                                      const lat = position.coords.latitude;
+                                      const lng = position.coords.longitude;
+                                      setCoordinates({ lat, lng });
+                                      setMapCenter({ lat, lng });
+                                      setLocation(`${lat}, ${lng}`);
+                                      // Reverse geocoding
+                                      fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+                                        .then(res => res.json())
+                                        .then(data => {
+                                          if (data.display_name) {
+                                            setAddress(data.display_name);
+                                          }
+                                        })
+                                        .catch(() => {});
+                                    }
+                                  );
+                                }
+                              }}
+                            >
+                              <i className="fa fa-crosshairs me-1"></i>
+                              Use My Current Location
+                            </button>
+                            <a
+                              href={`https://www.google.com/maps/search/?api=1&query=${coordinates ? `${coordinates.lat},${coordinates.lng}` : `${mapCenter.lat},${mapCenter.lng}`}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="btn btn-sm btn-outline-danger"
+                            >
+                              <i className="fa fa-external-link-alt me-1"></i>
+                              Open in Google Maps
+                            </a>
+                            <a
+                              href={`https://www.openstreetmap.org/?mlat=${coordinates ? coordinates.lat : mapCenter.lat}&mlon=${coordinates ? coordinates.lng : mapCenter.lng}&zoom=15`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="btn btn-sm btn-outline-secondary"
+                            >
+                              <i className="fa fa-map me-1"></i>
+                              Open in OpenStreetMap
+                            </a>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Form thông tin */}
+                      <div className="col-lg-4">
+                        <div className="mb-3">
+                          <label className="form-label fw-bold">
+                            <i className="fa fa-search me-2 text-primary"></i>
+                            Search Address
+                          </label>
+                          <div className="input-group">
+                            <input
+                              type="text"
+                              className="form-control"
+                              value={address}
+                              onChange={(e) => setAddress(e.target.value)}
+                              onKeyPress={(e) => {
+                                if (e.key === 'Enter') {
+                                  handleSearchAddress();
+                                }
+                              }}
+                              placeholder="Enter address..."
+                            />
+                            <button
+                              className="btn btn-primary"
+                              onClick={handleSearchAddress}
+                            >
+                              <i className="fa fa-search"></i>
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="mb-3">
+                          <label className="form-label fw-bold">
+                            <i className="fa fa-map-pin me-2 text-danger"></i>
+                            Coordinates
+                          </label>
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={location}
+                            onChange={(e) => setLocation(e.target.value)}
+                            placeholder="Latitude, Longitude"
+                            readOnly
+                          />
+                          <small className="text-muted">
+                            Auto-detected or selected from map
+                          </small>
+                        </div>
+
+                        {address && (
+                          <div className="mb-3">
+                            <label className="form-label fw-bold">
+                              <i className="fa fa-location-arrow me-2 text-success"></i>
+                              Address
+                            </label>
+                            <div className="alert alert-info mb-0">
+                              <small>{address}</small>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="d-grid gap-2 mt-4">
+                          <button
+                            className="btn btn-danger btn-lg"
+                            onClick={handleLocationConfirm}
+                            disabled={!location || location === 'Location not available'}
+                          >
+                            <i className="fa fa-check-circle me-2"></i>
+                            Confirm Location
+                          </button>
+                          <button
+                            className="btn btn-outline-secondary"
+                            onClick={() => setStep('initial')}
+                          >
+                            <i className="fa fa-arrow-left me-2"></i>
+                            Back
+                          </button>
+                        </div>
+
+                        <div className="mt-3 p-3 bg-light rounded">
+                          <small className="text-muted">
+                            <i className="fa fa-info-circle me-1"></i>
+                            <strong>Tip:</strong> Click on the map or search for an address to set your emergency location accurately.
+                          </small>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>

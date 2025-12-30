@@ -185,6 +185,14 @@ export default function Appointment() {
     return slotTime < now;
   };
 
+  // Format date to YYYY-MM-DD without timezone issues
+  const formatDateToString = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   // Handle slot selection
   const handleSlotSelection = (date: Date, hour: number) => {
     if (isPastTime(date, hour)) {
@@ -197,7 +205,7 @@ export default function Appointment() {
       return;
     }
 
-    setSelectedDate(date.toISOString().split('T')[0]);
+    setSelectedDate(formatDateToString(date));
     setSelectedTime(`${hour.toString().padStart(2, '0')}:00`);
     setErrorMessage('');
   };
@@ -205,7 +213,8 @@ export default function Appointment() {
   // Check if a slot is selected
   const isSlotSelected = (date: Date, hour: number): boolean => {
     if (!selectedDate || !selectedTime) return false;
-    const selectedDateObj = new Date(selectedDate);
+    const [year, month, day] = selectedDate.split('-').map(Number);
+    const selectedDateObj = new Date(year, month - 1, day);
     return (
       date.toDateString() === selectedDateObj.toDateString() &&
       parseInt(selectedTime.split(':')[0]) === hour
@@ -238,7 +247,8 @@ export default function Appointment() {
       return;
     }
 
-    const selectedDateObj = new Date(selectedDate);
+    const [year, month, day] = selectedDate.split('-').map(Number);
+    const selectedDateObj = new Date(year, month - 1, day);
     const selectedHour = parseInt(selectedTime.split(':')[0]);
     
     if (isSlotBooked(selectedDateObj, selectedHour)) {
@@ -500,22 +510,27 @@ export default function Appointment() {
                       </div>
 
                       {/* Selected Date and Time Display */}
-                      {selectedDate && selectedTime && (
-                        <div className="row mt-3">
-                          <div className="col-12">
-                            <div className="alert alert-info mb-0">
-                              <strong>Lịch đã chọn:</strong>{' '}
-                              {new Date(selectedDate).toLocaleDateString('vi-VN', {
-                                weekday: 'long',
-                                day: 'numeric',
-                                month: 'numeric',
-                                year: 'numeric',
-                              })}{' '}
-                              lúc {selectedTime}
+                      {selectedDate && selectedTime && (() => {
+                        // Parse selectedDate correctly (YYYY-MM-DD format)
+                        const [year, month, day] = selectedDate.split('-').map(Number);
+                        const selectedDateObj = new Date(year, month - 1, day);
+                        return (
+                          <div className="row mt-3">
+                            <div className="col-12">
+                              <div className="alert alert-info mb-0">
+                                <strong>Lịch đã chọn:</strong>{' '}
+                                {selectedDateObj.toLocaleDateString('vi-VN', {
+                                  weekday: 'long',
+                                  day: 'numeric',
+                                  month: 'numeric',
+                                  year: 'numeric',
+                                })}{' '}
+                                lúc {selectedTime}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      )}
+                        );
+                      })()}
                     </>
                   )}
 

@@ -1,10 +1,180 @@
+'use client';
+
+import { useState } from 'react';
 import Image from 'next/image';
 import Topbar from '@/components/Topbar';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import BackToTop from '@/components/BackToTop';
 
+interface Comment {
+  id: number;
+  name: string;
+  date: string;
+  content: string;
+  replies?: Comment[];
+}
+
 export default function Detail() {
+  const [comments, setComments] = useState<Comment[]>([
+    {
+      id: 1,
+      name: 'John Doe',
+      date: '01 Jan 2045',
+      content: 'Diam amet duo labore stet elitr invidunt ea clita ipsum voluptua, tempor labore accusam ipsum et no at. Kasd diam tempor rebum magna dolores sed eirmod',
+      replies: [],
+    },
+    {
+      id: 2,
+      name: 'John Doe',
+      date: '01 Jan 2045',
+      content: 'Diam amet duo labore stet elitr invidunt ea clita ipsum voluptua, tempor labore accusam ipsum et no at. Kasd diam tempor rebum magna dolores sed eirmod',
+      replies: [],
+    },
+    {
+      id: 3,
+      name: 'John Doe',
+      date: '01 Jan 2045',
+      content: 'Diam amet duo labore stet elitr invidunt ea clita ipsum voluptua, tempor labore accusam ipsum et no at. Kasd diam tempor rebum magna dolores sed eirmod',
+      replies: [],
+    },
+  ]);
+  const [replyingTo, setReplyingTo] = useState<number | null>(null);
+  const [replyForm, setReplyForm] = useState({ name: '', email: '', content: '' });
+
+  const handleReplyClick = (commentId: number) => {
+    setReplyingTo(replyingTo === commentId ? null : commentId);
+    setReplyForm({ name: '', email: '', content: '' });
+  };
+
+  const handleReplySubmit = (e: React.FormEvent, commentId: number) => {
+    e.preventDefault();
+    
+    if (!replyForm.name.trim() || !replyForm.content.trim()) {
+      return;
+    }
+
+    const newReply: Comment = {
+      id: Date.now(),
+      name: replyForm.name,
+      date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+      content: replyForm.content,
+      replies: [],
+    };
+
+    setComments(comments.map(comment => {
+      if (comment.id === commentId) {
+        return {
+          ...comment,
+          replies: [...(comment.replies || []), newReply],
+        };
+      }
+      return comment;
+    }));
+
+    setReplyForm({ name: '', email: '', content: '' });
+    setReplyingTo(null);
+  };
+
+  const handleReplyFormChange = (field: string, value: string) => {
+    setReplyForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const renderComment = (comment: Comment, isReply: boolean = false) => {
+    return (
+      <div key={comment.id} className={`d-flex mb-4 ${isReply ? 'ms-5' : ''}`}>
+        <Image
+          src="/img/user.jpg"
+          alt="User"
+          width={45}
+          height={45}
+          className="img-fluid rounded-circle"
+          style={{ objectFit: 'cover', width: '45px', height: '45px' }}
+        />
+        <div className="ps-3" style={{ flex: 1 }}>
+          <h6>
+            <a href="#!">{comment.name}</a> <small>
+              <i>{comment.date}</i>
+            </small>
+          </h6>
+          <p>{comment.content}</p>
+          <button 
+            className="btn btn-sm btn-light"
+            onClick={() => handleReplyClick(comment.id)}
+          >
+            Reply
+          </button>
+
+          {/* Reply Form */}
+          {replyingTo === comment.id && (
+            <div className="mt-3 bg-white rounded p-3 border">
+              <h6 className="mb-3">Reply to {comment.name}</h6>
+              <form onSubmit={(e) => handleReplySubmit(e, comment.id)}>
+                <div className="row g-2">
+                  <div className="col-12 col-sm-6">
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Your Name"
+                      value={replyForm.name}
+                      onChange={(e) => handleReplyFormChange('name', e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="col-12 col-sm-6">
+                    <input
+                      type="email"
+                      className="form-control"
+                      placeholder="Your Email"
+                      value={replyForm.email}
+                      onChange={(e) => handleReplyFormChange('email', e.target.value)}
+                    />
+                  </div>
+                  <div className="col-12">
+                    <textarea
+                      className="form-control"
+                      rows={3}
+                      placeholder="Your Reply"
+                      value={replyForm.content}
+                      onChange={(e) => handleReplyFormChange('content', e.target.value)}
+                      required
+                    ></textarea>
+                  </div>
+                  <div className="col-12">
+                    <div className="d-flex gap-2">
+                      <button type="submit" className="btn btn-primary btn-sm">
+                        Submit Reply
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => {
+                          setReplyingTo(null);
+                          setReplyForm({ name: '', email: '', content: '' });
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* Render Replies */}
+          {comment.replies && comment.replies.length > 0 && (
+            <div className="mt-3">
+              {comment.replies.map(reply => renderComment(reply, true))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const totalComments = comments.length + comments.reduce((acc, comment) => acc + (comment.replies?.length || 0), 0);
+
   return (
     <>
       <Topbar />
@@ -59,6 +229,7 @@ export default function Detail() {
                     width={40}
                     height={40}
                     className="rounded-circle me-2"
+                    style={{ objectFit: 'cover', width: '40px', height: '40px' }}
                   />
                   <span>John Doe</span>
                 </div>
@@ -77,32 +248,9 @@ export default function Detail() {
             {/* Comment List Start */}
             <div className="mb-5">
               <h4 className="d-inline-block text-primary text-uppercase border-bottom border-5 mb-4">
-                3 Comments
+                {totalComments} Comment{totalComments !== 1 ? 's' : ''}
               </h4>
-              {[1, 2, 3].map((i) => (
-                <div key={i} className={`d-flex mb-4 ${i === 3 ? 'ms-5' : ''}`}>
-                  <Image
-                    src="/img/user.jpg"
-                    alt="User"
-                    width={45}
-                    height={45}
-                    className="img-fluid rounded-circle"
-                  />
-                  <div className="ps-3">
-                    <h6>
-                      <a href="#!">John Doe</a> <small>
-                        <i>01 Jan 2045</i>
-                      </small>
-                    </h6>
-                    <p>
-                      Diam amet duo labore stet elitr invidunt ea clita ipsum voluptua, tempor
-                      labore accusam ipsum et no at. Kasd diam tempor rebum magna dolores sed
-                      eirmod
-                    </p>
-                    <button className="btn btn-sm btn-light">Reply</button>
-                  </div>
-                </div>
-              ))}
+              {comments.map(comment => renderComment(comment))}
             </div>
             {/* Comment List End */}
 

@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import Topbar from '@/components/Topbar';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import BackToTop from '@/components/BackToTop';
 import RequireAuth from '@/components/RequireAuth';
 import { getUserProfile } from '@/generated/api/endpoints/user-profile/user-profile';
+import { getUser, setUser } from '@/utils/auth';
 
 interface MedicalHistory {
   id?: string;
@@ -37,6 +39,10 @@ export default function Profile() {
   const [editingHistory, setEditingHistory] = useState<MedicalHistory | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [profileErrors, setProfileErrors] = useState<Record<string, string>>({});
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [currentAvatar, setCurrentAvatar] = useState<string | null>(null);
 
   const [profileData, setProfileData] = useState<UserProfile>({
     email: '',
@@ -61,7 +67,22 @@ export default function Profile() {
   useEffect(() => {
     loadMedicalHistories();
     loadProfile();
+    loadAvatar();
   }, []);
+
+  const loadAvatar = () => {
+    const userData = getUser();
+    if (userData?.avatar) {
+      setCurrentAvatar(userData.avatar);
+      setAvatarPreview(userData.avatar);
+    } else if (typeof window !== 'undefined') {
+      const savedAvatar = localStorage.getItem('user_avatar');
+      if (savedAvatar) {
+        setCurrentAvatar(savedAvatar);
+        setAvatarPreview(savedAvatar);
+      }
+    }
+  };
 
   const loadMedicalHistories = async () => {
     try {
@@ -212,6 +233,19 @@ export default function Profile() {
           phone: profileData.phone || '',
         });
       }
+
+      // Load avatar từ localStorage nếu có
+      const userData = getUser();
+      if (userData?.avatar) {
+        setCurrentAvatar(userData.avatar);
+        setAvatarPreview(userData.avatar);
+      } else if (typeof window !== 'undefined') {
+        const savedAvatar = localStorage.getItem('user_avatar');
+        if (savedAvatar) {
+          setCurrentAvatar(savedAvatar);
+          setAvatarPreview(savedAvatar);
+        }
+      }
     } catch (error) {
       console.error('Error loading profile:', error);
     }
@@ -253,6 +287,92 @@ export default function Profile() {
         delete newErrors[name];
         return newErrors;
       });
+    }
+  };
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        alert('Vui lòng chọn file ảnh!');
+        return;
+      }
+      
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Kích thước ảnh không được vượt quá 5MB!');
+        return;
+      }
+      
+      setAvatarFile(file);
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAvatarPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+      
+      // Auto upload
+      handleAvatarUpload(file);
+    }
+  };
+
+  const handleAvatarUpload = async (file: File) => {
+    try {
+      setIsUploadingAvatar(true);
+      
+      // Create FormData
+      const formData = new FormData();
+      formData.append('avatar', file);
+      
+      // TODO: Call API to upload avatar
+      // const profileApi = getUserProfile();
+      // const response = await profileApi.uploadAvatar(formData);
+      
+      // For now, update local state immediately
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const avatarUrl = reader.result as string;
+        
+        // Update current avatar
+        setCurrentAvatar(avatarUrl);
+        
+        // Update user in localStorage
+        const userData = getUser();
+        if (userData) {
+          const updatedUser = {
+            ...userData,
+            avatar: avatarUrl
+          };
+          localStorage.setItem('user', JSON.stringify(updatedUser));
+          setUser(updatedUser);
+          
+          // Lưu avatar riêng vào localStorage
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('user_avatar', avatarUrl);
+          }
+          
+          // Dispatch event to notify other components (like Navbar)
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('avatar-updated'));
+            window.dispatchEvent(new Event('auth-change'));
+          }
+        }
+        
+        alert('Cập nhật ảnh đại diện thành công!');
+      };
+      reader.readAsDataURL(file);
+      
+    } catch (error: any) {
+      console.error('Error uploading avatar:', error);
+      alert('Có lỗi xảy ra khi cập nhật ảnh đại diện. Vui lòng thử lại!');
+      setAvatarFile(null);
+      setAvatarPreview(null);
+    } finally {
+      setIsUploadingAvatar(false);
     }
   };
 
@@ -327,6 +447,56 @@ export default function Profile() {
               {activeTab === 'profile' && (
                 <div className="bg-light rounded p-5">
                   <h4 className="mb-4">Thông Tin Cá Nhân</h4>
+                  
+                  {/* Avatar Section */}
+                  <div className="text-center mb-4 pb-4 border-bottom">
+                    <div className="position-relative d-inline-block">
+                      {avatarPreview || currentAvatar ? (
+                        <img
+                          src={avatarPreview || currentAvatar || ''}
+                          alt="Ảnh đại diện"
+                          className="rounded-circle"
+                          style={{ width: '120px', height: '120px', objectFit: 'cover' }}
+                        />
+                      ) : (
+                        <div
+                          className="rounded-circle bg-primary d-flex align-items-center justify-content-center mx-auto"
+                          style={{ width: '120px', height: '120px' }}
+                        >
+                          <i className="fa fa-user fa-4x text-white"></i>
+                        </div>
+                      )}
+                      {/* Upload button overlay */}
+                      <div className="position-absolute bottom-0 end-0">
+                        <label
+                          className="btn btn-primary btn-sm rounded-circle"
+                          style={{ width: '40px', height: '40px', cursor: 'pointer' }}
+                          title="Đổi ảnh đại diện"
+                        >
+                          <i className="fa fa-camera"></i>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            style={{ display: 'none' }}
+                            onChange={handleAvatarChange}
+                            disabled={isUploadingAvatar}
+                          />
+                        </label>
+                      </div>
+                      {isUploadingAvatar && (
+                        <div className="position-absolute top-50 start-50 translate-middle">
+                          <div className="spinner-border spinner-border-sm text-primary" role="status">
+                            <span className="visually-hidden">Đang tải...</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-muted small mt-3 mb-0">
+                      <i className="fa fa-info-circle me-1"></i>
+                      Click icon camera để đổi ảnh đại diện
+                    </p>
+                  </div>
+
                   <form onSubmit={handleProfileSubmit}>
                     <div className="row g-3">
                       {/* Full Name */}

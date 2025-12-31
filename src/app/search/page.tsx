@@ -9,6 +9,7 @@ import Footer from '@/components/Footer';
 import BackToTop from '@/components/BackToTop';
 import { getClinicManagement } from '@/generated/api/endpoints/clinic-management/clinic-management';
 import { getDoctorManagement } from '@/generated/api/endpoints/doctor-management/doctor-management';
+import { isAuthenticated } from '@/utils/auth';
 
 const SPECIALIZATIONS = [
   { value: 'Emergency Care', label: 'Cấp cứu' },
@@ -40,8 +41,10 @@ export default function Search() {
   });
 
   useEffect(() => {
-    loadClinics();
-    loadAllDoctors();
+    if (isAuthenticated()) {
+      loadClinics();
+      loadAllDoctors();
+    }
   }, []);
 
   const loadClinics = async () => {

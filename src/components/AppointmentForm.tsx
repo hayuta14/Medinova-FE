@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { getClinicManagement } from '@/generated/api/endpoints/clinic-management/clinic-management';
 import { getDoctorManagement } from '@/generated/api/endpoints/doctor-management/doctor-management';
-import { getUser } from '@/utils/auth';
+import { getUser, isAuthenticated } from '@/utils/auth';
 
 interface AppointmentFormProps {
   bgColor?: string;
@@ -31,14 +31,16 @@ export default function AppointmentForm({ bgColor = 'bg-white', textColor = 'bg-
     email: '',
   });
 
-  // Load hospitals on mount
+  // Load hospitals on mount (only if authenticated)
   useEffect(() => {
-    loadHospitals();
+    if (isAuthenticated()) {
+      loadHospitals();
+    }
   }, []);
 
-  // Load doctors when hospital is selected
+  // Load doctors when hospital is selected (only if authenticated)
   useEffect(() => {
-    if (selectedHospitalId) {
+    if (selectedHospitalId && isAuthenticated()) {
       loadDoctorsByHospital(Number(selectedHospitalId));
       setSelectedDoctorId('');
       setSelectedDay(0);

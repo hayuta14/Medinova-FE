@@ -30,7 +30,7 @@ export default function Contact() {
                 >
                   <i className="fa fa-2x fa-location-arrow text-white" style={{ transform: 'rotate(15deg)' }}></i>
                 </div>
-                <h6 className="mb-0">Số 8 Tôn Thất Thuyết, Mỹ Đình, Nam Từ Liêm, Hà Nội</h6>
+                <h6 className="mb-0">13a Trịnh Văn Bô, Xuân Phương, Nam Từ Liêm, Hà Nội</h6>
               </div>
             </div>
             <div className="col-lg-4">
@@ -67,7 +67,7 @@ export default function Contact() {
               <div className="position-relative h-100">
                 <iframe
                   className="position-relative w-100 h-100"
-                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3724.0966092835137!2d105.7802573152608!3d21.02881579315342!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3135ab4e6fe6727d%3A0x5593b5e3d8961422!2zQ2FvIMSR4buNbmcgRlBUIEjDoG4gT2k!5e0!3m2!1svi!2s!4v1704000000000!5m2!1svi!2s"
+                  src="https://www.google.com/maps?q=13a+Tr%E1%BB%8Bnh+V%C4%83n+B%C3%B4,+Xu%C3%A2n+Ph%C6%B0%C6%A1ng,+Nam+T%E1%BB%AB+Li%C3%AAm,+H%C3%A0+N%E1%BB%99i&output=embed"
                   frameBorder="0"
                   style={{ border: 0 }}
                   allowFullScreen

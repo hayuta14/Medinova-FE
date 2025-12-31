@@ -21,6 +21,11 @@ interface MedicalHistory {
   previousSurgeries: string;
   familyHistory: string;
   notes: string;
+  insuranceCardNumber?: string;
+  insuranceIssueDate?: string;
+  insuranceExpiryDate?: string;
+  insuranceRegistrationPlace?: string;
+  insuranceObjectCode?: string;
   createdAt?: string;
 }
 
@@ -61,6 +66,11 @@ export default function Profile() {
     previousSurgeries: '',
     familyHistory: '',
     notes: '',
+    insuranceCardNumber: '',
+    insuranceIssueDate: '',
+    insuranceExpiryDate: '',
+    insuranceRegistrationPlace: '',
+    insuranceObjectCode: '',
   });
 
   // Load medical histories and profile on component mount
@@ -137,6 +147,11 @@ export default function Profile() {
         previousSurgeries: formData.previousSurgeries,
         familyHistory: formData.familyHistory,
         notes: formData.notes,
+        insuranceCardNumber: formData.insuranceCardNumber,
+        insuranceIssueDate: formData.insuranceIssueDate,
+        insuranceExpiryDate: formData.insuranceExpiryDate,
+        insuranceRegistrationPlace: formData.insuranceRegistrationPlace,
+        insuranceObjectCode: formData.insuranceObjectCode,
       });
 
       // Reload medical histories sau khi update
@@ -153,6 +168,11 @@ export default function Profile() {
         previousSurgeries: '',
         familyHistory: '',
         notes: '',
+        insuranceCardNumber: '',
+        insuranceIssueDate: '',
+        insuranceExpiryDate: '',
+        insuranceRegistrationPlace: '',
+        insuranceObjectCode: '',
       });
       setShowForm(false);
       setEditingHistory(null);
@@ -203,6 +223,11 @@ export default function Profile() {
       previousSurgeries: '',
       familyHistory: '',
       notes: '',
+      insuranceCardNumber: '',
+      insuranceIssueDate: '',
+      insuranceExpiryDate: '',
+      insuranceRegistrationPlace: '',
+      insuranceObjectCode: '',
     });
     setShowForm(false);
     setEditingHistory(null);
@@ -634,6 +659,11 @@ export default function Profile() {
                             previousSurgeries: '',
                             familyHistory: '',
                             notes: '',
+                            insuranceCardNumber: '',
+                            insuranceIssueDate: '',
+                            insuranceExpiryDate: '',
+                            insuranceRegistrationPlace: '',
+                            insuranceObjectCode: '',
                           });
                         }}
                       >
@@ -797,6 +827,99 @@ export default function Profile() {
                             ></textarea>
                           </div>
 
+                          {/* Insurance Section */}
+                          <div className="col-12">
+                            <hr className="my-4" />
+                            <h5 className="mb-4 text-primary">
+                              <i className="fa fa-id-card me-2"></i>
+                              Thông Tin Bảo Hiểm Y Tế
+                            </h5>
+                          </div>
+
+                          {/* Insurance Card Number */}
+                          <div className="col-12 col-md-6">
+                            <label htmlFor="insuranceCardNumber" className="form-label fw-bold">
+                              Số Thẻ BHYT
+                            </label>
+                            <input
+                              type="text"
+                              id="insuranceCardNumber"
+                              name="insuranceCardNumber"
+                              className="form-control bg-white border-0"
+                              placeholder="Nhập số thẻ BHYT (15 chữ số)"
+                              value={formData.insuranceCardNumber || ''}
+                              onChange={handleChange}
+                              style={{ height: '55px' }}
+                              maxLength={15}
+                            />
+                          </div>
+
+                          {/* Insurance Issue Date */}
+                          <div className="col-12 col-md-6">
+                            <label htmlFor="insuranceIssueDate" className="form-label fw-bold">
+                              Ngày Cấp
+                            </label>
+                            <input
+                              type="date"
+                              id="insuranceIssueDate"
+                              name="insuranceIssueDate"
+                              className="form-control bg-white border-0"
+                              value={formData.insuranceIssueDate || ''}
+                              onChange={handleChange}
+                              style={{ height: '55px' }}
+                            />
+                          </div>
+
+                          {/* Insurance Expiry Date */}
+                          <div className="col-12 col-md-6">
+                            <label htmlFor="insuranceExpiryDate" className="form-label fw-bold">
+                              Ngày Hết Hạn
+                            </label>
+                            <input
+                              type="date"
+                              id="insuranceExpiryDate"
+                              name="insuranceExpiryDate"
+                              className="form-control bg-white border-0"
+                              value={formData.insuranceExpiryDate || ''}
+                              onChange={handleChange}
+                              style={{ height: '55px' }}
+                            />
+                          </div>
+
+                          {/* Insurance Object Code */}
+                          <div className="col-12 col-md-6">
+                            <label htmlFor="insuranceObjectCode" className="form-label fw-bold">
+                              Mã Đối Tượng
+                            </label>
+                            <input
+                              type="text"
+                              id="insuranceObjectCode"
+                              name="insuranceObjectCode"
+                              className="form-control bg-white border-0"
+                              placeholder="Nhập mã đối tượng (VD: CC, CS, TS...)"
+                              value={formData.insuranceObjectCode || ''}
+                              onChange={handleChange}
+                              style={{ height: '55px' }}
+                            />
+                          </div>
+
+                          {/* Insurance Registration Place */}
+                          <div className="col-12">
+                            <label htmlFor="insuranceRegistrationPlace" className="form-label fw-bold">
+                              Nơi Đăng Ký KCB Ban Đầu
+                            </label>
+                            <input
+                              type="text"
+                              id="insuranceRegistrationPlace"
+                              name="insuranceRegistrationPlace"
+                              className="form-control bg-white border-0"
+                              placeholder="Nhập tên cơ sở y tế đăng ký khám chữa bệnh ban đầu"
+                              value={formData.insuranceRegistrationPlace || ''}
+                              onChange={handleChange}
+                              style={{ height: '55px' }}
+                            />
+                          </div>
+
                           {/* Buttons */}
                           <div className="col-12">
                             <button
@@ -911,6 +1034,48 @@ export default function Profile() {
                                   <div className="mb-2">
                                     <strong>Ghi chú:</strong>
                                     <p className="mb-0">{history.notes}</p>
+                                  </div>
+                                )}
+
+                                {/* Insurance Information */}
+                                {(history.insuranceCardNumber || history.insuranceIssueDate || history.insuranceExpiryDate || history.insuranceRegistrationPlace || history.insuranceObjectCode) && (
+                                  <div className="mb-2 mt-3 pt-3 border-top">
+                                    <h6 className="text-primary mb-3">
+                                      <i className="fa fa-id-card me-2"></i>
+                                      Thông Tin Bảo Hiểm Y Tế
+                                    </h6>
+                                    <div className="row">
+                                      {history.insuranceCardNumber && (
+                                        <div className="col-md-6 mb-2">
+                                          <strong>Số Thẻ BHYT:</strong>
+                                          <p className="mb-0">{history.insuranceCardNumber}</p>
+                                        </div>
+                                      )}
+                                      {history.insuranceObjectCode && (
+                                        <div className="col-md-6 mb-2">
+                                          <strong>Mã Đối Tượng:</strong>
+                                          <p className="mb-0">{history.insuranceObjectCode}</p>
+                                        </div>
+                                      )}
+                                      {history.insuranceIssueDate && (
+                                        <div className="col-md-6 mb-2">
+                                          <strong>Ngày Cấp:</strong>
+                                          <p className="mb-0">{new Date(history.insuranceIssueDate).toLocaleDateString('vi-VN')}</p>
+                                        </div>
+                                      )}
+                                      {history.insuranceExpiryDate && (
+                                        <div className="col-md-6 mb-2">
+                                          <strong>Ngày Hết Hạn:</strong>
+                                          <p className="mb-0">{new Date(history.insuranceExpiryDate).toLocaleDateString('vi-VN')}</p>
+                                        </div>
+                                      )}
+                                      {history.insuranceRegistrationPlace && (
+                                        <div className="col-12 mb-2">
+                                          <strong>Nơi Đăng Ký KCB Ban Đầu:</strong>
+                                          <p className="mb-0">{history.insuranceRegistrationPlace}</p>
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
                                 )}
                               </div>

@@ -122,9 +122,14 @@ export default function LoginPage() {
                   </div>
 
                   <div className="mb-3">
-                    <label htmlFor="loginPassword" className="form-label">
-                      Password <span className="text-danger">*</span>
-                    </label>
+                    <div className="d-flex justify-content-between align-items-center mb-1">
+                      <label htmlFor="loginPassword" className="form-label mb-0">
+                        Password <span className="text-danger">*</span>
+                      </label>
+                      <Link href="/forgot-password" className="text-primary text-decoration-none small">
+                        Quên mật khẩu?
+                      </Link>
+                    </div>
                     <input
                       type="password"
                       className={`form-control ${errors.password ? 'is-invalid' : ''}`}

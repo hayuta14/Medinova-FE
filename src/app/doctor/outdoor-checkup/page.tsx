@@ -469,8 +469,13 @@ export default function OutdoorCheckupPage() {
           className="modal show d-block" 
           style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}
           tabIndex={-1}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setSelectedAppointment(null);
+            }
+          }}
         >
-          <div className="modal-dialog modal-lg modal-dialog-centered">
+          <div className="modal-dialog modal-lg modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
             <div className="modal-content">
               <div className="modal-header bg-primary text-white">
                 <h5 className="modal-title">

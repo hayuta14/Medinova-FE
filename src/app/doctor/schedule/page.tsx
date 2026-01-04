@@ -3,8 +3,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getAppointmentManagement } from '@/generated/api/endpoints/appointment-management/appointment-management';
 import { getDoctorManagement } from '@/generated/api/endpoints/doctor-management/doctor-management';
+import { getLeaveRequestManagement } from '@/generated/api/endpoints/leave-request-management/leave-request-management';
 import { getUser } from '@/utils/auth';
-import type { BusyScheduleResponse } from '@/generated/api/models';
+import type { BusyScheduleResponse, DoctorLeaveRequest } from '@/generated/api/models';
 
 export default function SchedulePage() {
   const [busySchedules, setBusySchedules] = useState<BusyScheduleResponse[]>([]);
@@ -13,12 +14,17 @@ export default function SchedulePage() {
   const [doctorId, setDoctorId] = useState<number | null>(null);
   const [showBlockModal, setShowBlockModal] = useState(false);
   const [blockFormData, setBlockFormData] = useState({
-    date: '',
+    startDate: '',
+    endDate: '',
     startTime: '',
     endTime: '',
     reason: '',
+    isAllDay: false,
+    isMultipleDays: false,
   });
   const [errorMessage, setErrorMessage] = useState('');
+  const [myLeaveRequests, setMyLeaveRequests] = useState<DoctorLeaveRequest[]>([]);
+  const [isLoadingLeaveRequests, setIsLoadingLeaveRequests] = useState(false);
 
   // Get doctor ID from user
   useEffect(() => {
@@ -83,6 +89,7 @@ export default function SchedulePage() {
   useEffect(() => {
     if (doctorId) {
       loadBusySchedules(doctorId);
+      loadMyLeaveRequests();
     }
   }, [doctorId, selectedWeek]);
 
@@ -99,6 +106,31 @@ export default function SchedulePage() {
       setBusySchedules([]);
     } finally {
       setIsLoading(false);
+    }
+  }, []);
+
+  // Load my leave requests
+  const loadMyLeaveRequests = useCallback(async () => {
+    try {
+      setIsLoadingLeaveRequests(true);
+      const leaveApi = getLeaveRequestManagement();
+      const response = await leaveApi.getMyLeaveRequests();
+      const requestsData = (response as any)?.data || response;
+      const requestsList = Array.isArray(requestsData) ? requestsData : [];
+      
+      // Sort by creation date (newest first)
+      const sortedRequests = requestsList.sort((a: DoctorLeaveRequest, b: DoctorLeaveRequest) => {
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return dateB - dateA;
+      });
+      
+      setMyLeaveRequests(sortedRequests);
+    } catch (error) {
+      console.error('Error loading my leave requests:', error);
+      setMyLeaveRequests([]);
+    } finally {
+      setIsLoadingLeaveRequests(false);
     }
   }, []);
 
@@ -135,6 +167,110 @@ export default function SchedulePage() {
     const diffTime = targetDate.getTime() - now.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays >= 3;
+  };
+
+  // Validate date format and check if it's a valid date
+  const isValidDate = (dateString: string): boolean => {
+    if (!dateString) return false;
+    const date = new Date(dateString);
+    return date instanceof Date && !isNaN(date.getTime());
+  };
+
+  // Validate date selection with comprehensive checks
+  const validateDateSelection = (): string | null => {
+    // Check startDate is provided
+    if (!blockFormData.startDate || blockFormData.startDate.trim() === '') {
+      return 'Vui lòng chọn ngày bắt đầu.';
+    }
+
+    // Check startDate format is valid
+    if (!isValidDate(blockFormData.startDate)) {
+      return 'Ngày bắt đầu không hợp lệ. Vui lòng chọn lại.';
+    }
+
+    const startDateObj = new Date(blockFormData.startDate);
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    startDateObj.setHours(0, 0, 0, 0);
+
+    // Check startDate is not in the past
+    if (startDateObj < now) {
+      return 'Ngày bắt đầu không được là ngày trong quá khứ.';
+    }
+
+    // Check startDate is at least 3 days from now
+    if (!isAtLeast3DaysFromNow(startDateObj)) {
+      const diffTime = startDateObj.getTime() - now.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      if (diffDays < 0) {
+        return 'Ngày bắt đầu không được là ngày trong quá khứ.';
+      } else if (diffDays === 0) {
+        return 'Ngày bắt đầu phải được đặt trước ít nhất 3 ngày. Hôm nay không thể đặt.';
+      } else if (diffDays === 1) {
+        return 'Ngày bắt đầu phải được đặt trước ít nhất 3 ngày. Còn 1 ngày nữa mới đủ 3 ngày.';
+      } else if (diffDays === 2) {
+        return 'Ngày bắt đầu phải được đặt trước ít nhất 3 ngày. Còn 2 ngày nữa mới đủ 3 ngày.';
+      } else {
+        return 'Ngày bắt đầu phải được đặt trước ít nhất 3 ngày.';
+      }
+    }
+
+    // If multiple days, validate endDate
+    if (blockFormData.isMultipleDays) {
+      // Check endDate is provided
+      if (!blockFormData.endDate || blockFormData.endDate.trim() === '') {
+        return 'Vui lòng chọn ngày kết thúc.';
+      }
+
+      // Check endDate format is valid
+      if (!isValidDate(blockFormData.endDate)) {
+        return 'Ngày kết thúc không hợp lệ. Vui lòng chọn lại.';
+      }
+
+      const endDateObj = new Date(blockFormData.endDate);
+      endDateObj.setHours(0, 0, 0, 0);
+
+      // Check endDate is not in the past
+      if (endDateObj < now) {
+        return 'Ngày kết thúc không được là ngày trong quá khứ.';
+      }
+
+      // Check endDate is at least 3 days from now
+      if (!isAtLeast3DaysFromNow(endDateObj)) {
+        const diffTime = endDateObj.getTime() - now.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        if (diffDays < 0) {
+          return 'Ngày kết thúc không được là ngày trong quá khứ.';
+        } else if (diffDays === 0) {
+          return 'Ngày kết thúc phải được đặt trước ít nhất 3 ngày. Hôm nay không thể đặt.';
+        } else if (diffDays === 1) {
+          return 'Ngày kết thúc phải được đặt trước ít nhất 3 ngày. Còn 1 ngày nữa mới đủ 3 ngày.';
+        } else if (diffDays === 2) {
+          return 'Ngày kết thúc phải được đặt trước ít nhất 3 ngày. Còn 2 ngày nữa mới đủ 3 ngày.';
+        } else {
+          return 'Ngày kết thúc phải được đặt trước ít nhất 3 ngày.';
+        }
+      }
+
+      // Check endDate is after or equal to startDate
+      if (endDateObj < startDateObj) {
+        return 'Ngày kết thúc phải sau hoặc bằng ngày bắt đầu.';
+      }
+
+      // Check if endDate is same as startDate (should use single day instead)
+      if (endDateObj.getTime() === startDateObj.getTime()) {
+        return 'Ngày kết thúc phải khác ngày bắt đầu. Nếu chỉ một ngày, vui lòng chọn "Một ngày".';
+      }
+
+      // Optional: Check if date range is too long (e.g., more than 1 year)
+      const diffTime = endDateObj.getTime() - startDateObj.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      if (diffDays > 365) {
+        return 'Khoảng thời gian chặn không được vượt quá 365 ngày.';
+      }
+    }
+
+    return null; // All validations passed
   };
 
   // Get busy schedule info for a specific slot
@@ -202,31 +338,140 @@ export default function SchedulePage() {
 
   // Handle block time form submission
   const handleBlockTime = async () => {
-    if (!blockFormData.date || !blockFormData.startTime || !blockFormData.endTime) {
-      setErrorMessage('Vui lòng điền đầy đủ thông tin.');
+    // Comprehensive date validation
+    const dateValidationError = validateDateSelection();
+    if (dateValidationError) {
+      setErrorMessage(dateValidationError);
       return;
     }
 
-    const selectedDate = new Date(blockFormData.date);
-    if (!isAtLeast3DaysFromNow(selectedDate)) {
-      setErrorMessage('Lịch làm việc phải được đặt trước 3 ngày.');
+    // If not all day, validate time fields
+    if (!blockFormData.isAllDay) {
+      if (!blockFormData.startTime || !blockFormData.endTime) {
+        setErrorMessage('Vui lòng chọn thời gian bắt đầu và kết thúc.');
+        return;
+      }
+
+      // Validate time range (8h - 18h)
+      const startHour = parseInt(blockFormData.startTime.split(':')[0]);
+      const endHour = parseInt(blockFormData.endTime.split(':')[0]);
+      
+      if (startHour < 8 || startHour > 17) {
+        setErrorMessage('Thời gian bắt đầu phải trong khoảng từ 8h đến 17h.');
+        return;
+      }
+      
+      if (endHour <= startHour || endHour > 18) {
+        setErrorMessage('Thời gian kết thúc phải sau thời gian bắt đầu và không quá 18h.');
+        return;
+      }
+    }
+
+    // Validate reason (required)
+    if (!blockFormData.reason || blockFormData.reason.trim() === '') {
+      setErrorMessage('Vui lòng nhập lý do chặn thời gian.');
       return;
     }
 
     try {
-      // TODO: Implement API call to block time (create leave request)
-      console.log('Block time:', blockFormData);
-      setShowBlockModal(false);
-      setBlockFormData({ date: '', startTime: '', endTime: '', reason: '' });
+      setIsLoading(true);
       setErrorMessage('');
       
-      // Reload busy schedules after blocking
-      if (doctorId) {
-        await loadBusySchedules(doctorId);
+      // Format dates (API expects date format YYYY-MM-DD)
+      const startDate = blockFormData.startDate;
+      const endDate = blockFormData.isMultipleDays ? blockFormData.endDate : blockFormData.startDate;
+
+      // Build reason and prepare time strings
+      let reason = blockFormData.reason || undefined;
+      
+      // Prepare request body - API expects startTime and endTime as string format "HH:MM:SS"
+      const requestBody: {
+        startDate: string;
+        endDate: string;
+        startTime?: string;
+        endTime?: string;
+        reason?: string;
+      } = {
+        startDate: startDate,
+        endDate: endDate,
+      };
+      
+      if (blockFormData.isAllDay) {
+        // All day leave request - no startTime and endTime
+        reason = blockFormData.reason 
+          ? `Cả ngày - ${blockFormData.reason}` 
+          : 'Cả ngày';
+        // Don't include startTime and endTime for all day - they will be undefined
+      } else {
+        // Specific time range leave request - convert from "HH:MM" to "HH:MM:SS" format
+        const startTimeParts = blockFormData.startTime.split(':');
+        const endTimeParts = blockFormData.endTime.split(':');
+        
+        const startHour = parseInt(startTimeParts[0]);
+        const startMinute = parseInt(startTimeParts[1]) || 0;
+        const endHour = parseInt(endTimeParts[0]);
+        const endMinute = parseInt(endTimeParts[1]) || 0;
+        
+        // Validate parsed values
+        if (isNaN(startHour) || isNaN(endHour)) {
+          setErrorMessage('Thời gian không hợp lệ. Vui lòng chọn lại.');
+          setIsLoading(false);
+          return;
+        }
+        
+        // Format as "HH:MM:SS" string (API expects LocalTime as string)
+        requestBody.startTime = `${startHour.toString().padStart(2, '0')}:${startMinute.toString().padStart(2, '0')}:00`;
+        requestBody.endTime = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}:00`;
       }
-    } catch (error) {
+      
+      // Add reason if provided
+      if (reason) {
+        requestBody.reason = reason;
+      }
+
+      // Call API to create leave request
+      const leaveApi = getLeaveRequestManagement();
+      const response = await leaveApi.createLeaveRequest(requestBody);
+
+      // Check if request was successful
+      if (response) {
+        setShowBlockModal(false);
+        setBlockFormData({ 
+          startDate: '', 
+          endDate: '', 
+          startTime: '08:00', 
+          endTime: '18:00', 
+          reason: '', 
+          isAllDay: false,
+          isMultipleDays: false,
+        });
+        setErrorMessage('');
+        
+        // Reload busy schedules and leave requests after blocking
+        if (doctorId) {
+          await Promise.all([
+            loadBusySchedules(doctorId),
+            loadMyLeaveRequests()
+          ]);
+        }
+        
+        alert('Đã tạo đơn xin nghỉ thành công! Vui lòng chờ admin phê duyệt.');
+      }
+    } catch (error: any) {
       console.error('Error blocking time:', error);
-      setErrorMessage('Có lỗi xảy ra khi chặn thời gian. Vui lòng thử lại.');
+      
+      // Parse error message from API response
+      let errorMsg = 'Có lỗi xảy ra khi chặn thời gian. Vui lòng thử lại.';
+      
+      if (error?.response?.data?.message) {
+        errorMsg = error.response.data.message;
+      } else if (error?.message) {
+        errorMsg = error.message;
+      }
+      
+      setErrorMessage(errorMsg);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -243,6 +488,15 @@ export default function SchedulePage() {
     return minDate.toISOString().split('T')[0];
   };
 
+  // Generate hour options (8h to 18h)
+  const getHourOptions = (): string[] => {
+    const hours: string[] = [];
+    for (let i = 8; i <= 18; i++) {
+      hours.push(`${i.toString().padStart(2, '0')}:00`);
+    }
+    return hours;
+  };
+
   return (
     <div>
       <div className="d-flex justify-content-between align-items-center mb-4">
@@ -252,7 +506,15 @@ export default function SchedulePage() {
           onClick={() => {
             setShowBlockModal(true);
             setErrorMessage('');
-            setBlockFormData({ date: '', startTime: '', endTime: '', reason: '' });
+            setBlockFormData({ 
+              startDate: '', 
+              endDate: '', 
+              startTime: '08:00', 
+              endTime: '18:00', 
+              reason: '', 
+              isAllDay: false,
+              isMultipleDays: false,
+            });
           }}
         >
           <i className="fa fa-ban me-2"></i>Chặn thời gian
@@ -562,14 +824,122 @@ export default function SchedulePage() {
         </div>
       </div>
 
+      {/* My Leave Requests Section */}
+      <div className="card shadow-sm mt-4">
+        <div className="card-header bg-info text-white d-flex justify-content-between align-items-center">
+          <h5 className="mb-0">
+            <i className="fa fa-calendar-times me-2"></i>
+            Đơn xin nghỉ của tôi
+          </h5>
+          <button
+            className="btn btn-sm btn-light"
+            onClick={loadMyLeaveRequests}
+            disabled={isLoadingLeaveRequests}
+          >
+            <i className={`fa fa-${isLoadingLeaveRequests ? 'spinner fa-spin' : 'sync'} me-2`}></i>
+            Làm mới
+          </button>
+        </div>
+        <div className="card-body">
+          {isLoadingLeaveRequests ? (
+            <div className="text-center py-3">
+              <div className="spinner-border text-primary spinner-border-sm" role="status">
+                <span className="visually-hidden">Loading...</span>
+              </div>
+            </div>
+          ) : myLeaveRequests.length === 0 ? (
+            <div className="text-center py-3">
+              <i className="fa fa-calendar-times fa-2x text-muted mb-2"></i>
+              <p className="text-muted mb-0">Chưa có đơn xin nghỉ nào</p>
+            </div>
+          ) : (
+            <div className="table-responsive">
+              <table className="table table-hover mb-0">
+                <thead>
+                  <tr>
+                    <th>Ngày bắt đầu</th>
+                    <th>Ngày kết thúc</th>
+                    <th>Lý do</th>
+                    <th>Trạng thái</th>
+                    <th>Ngày tạo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {myLeaveRequests.map((request) => (
+                    <tr key={request.id}>
+                      <td>
+                        {request.startDate 
+                          ? new Date(request.startDate).toLocaleDateString('vi-VN', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                            })
+                          : 'N/A'}
+                      </td>
+                      <td>
+                        {request.endDate 
+                          ? new Date(request.endDate).toLocaleDateString('vi-VN', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                            })
+                          : 'N/A'}
+                      </td>
+                      <td>{request.reason || 'Không có lý do'}</td>
+                      <td>
+                        <span className={`badge ${
+                          request.status === 'APPROVED' ? 'bg-success' : 
+                          request.status === 'REJECTED' ? 'bg-danger' : 
+                          'bg-warning'
+                        }`}>
+                          {request.status === 'APPROVED' ? 'Đã duyệt' :
+                           request.status === 'REJECTED' ? 'Đã từ chối' :
+                           'Chờ duyệt'}
+                        </span>
+                      </td>
+                      <td>
+                        {request.createdAt 
+                          ? new Date(request.createdAt).toLocaleString('vi-VN', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+                          : 'N/A'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Block Time Modal */}
       {showBlockModal && (
         <div 
           className="modal show d-block" 
           style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}
           tabIndex={-1}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowBlockModal(false);
+              setErrorMessage('');
+              setBlockFormData({ 
+                startDate: '', 
+                endDate: '', 
+                startTime: '08:00', 
+                endTime: '18:00', 
+                reason: '', 
+                isAllDay: false,
+                isMultipleDays: false,
+              });
+            }
+          }}
         >
-          <div className="modal-dialog modal-dialog-centered">
+          <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
             <div className="modal-content">
               <div className="modal-header bg-warning text-white">
                 <h5 className="modal-title">
@@ -581,7 +951,15 @@ export default function SchedulePage() {
                   onClick={() => {
                     setShowBlockModal(false);
                     setErrorMessage('');
-                    setBlockFormData({ date: '', startTime: '', endTime: '', reason: '' });
+                    setBlockFormData({ 
+                      startDate: '', 
+                      endDate: '', 
+                      startTime: '08:00', 
+                      endTime: '18:00', 
+                      reason: '', 
+                      isAllDay: false,
+                      isMultipleDays: false,
+                    });
                   }}
                 ></button>
               </div>
@@ -593,46 +971,140 @@ export default function SchedulePage() {
                   </div>
                 )}
                 <div className="mb-3">
-                  <label className="form-label">Ngày *</label>
+                  <label className="form-label">Loại chặn thời gian *</label>
+                  <div className="btn-group w-100" role="group">
+                    <input
+                      type="radio"
+                      className="btn-check"
+                      name="dateType"
+                      id="singleDay"
+                      checked={!blockFormData.isMultipleDays}
+                      onChange={() => setBlockFormData({ ...blockFormData, isMultipleDays: false, endDate: '', isAllDay: false })}
+                    />
+                    <label className="btn btn-outline-primary" htmlFor="singleDay">
+                      <i className="fa fa-calendar-day me-2"></i>Một ngày
+                    </label>
+                    <input
+                      type="radio"
+                      className="btn-check"
+                      name="dateType"
+                      id="multipleDays"
+                      checked={blockFormData.isMultipleDays}
+                      onChange={() => setBlockFormData({ ...blockFormData, isMultipleDays: true, isAllDay: true })}
+                    />
+                    <label className="btn btn-outline-primary" htmlFor="multipleDays">
+                      <i className="fa fa-calendar-alt me-2"></i>Nhiều ngày
+                    </label>
+                  </div>
+                </div>
+                <div className="mb-3">
+                  <label className="form-label">Ngày bắt đầu *</label>
                   <input 
                     type="date" 
                     className="form-control" 
-                    value={blockFormData.date}
-                    onChange={(e) => setBlockFormData({ ...blockFormData, date: e.target.value })}
+                    value={blockFormData.startDate}
+                    onChange={(e) => setBlockFormData({ ...blockFormData, startDate: e.target.value })}
                     min={getMinDate()}
                     required
                   />
                   <small className="text-muted">Lịch làm việc phải được đặt trước 3 ngày</small>
                 </div>
+                {blockFormData.isMultipleDays && (
+                  <div className="mb-3">
+                    <label className="form-label">Ngày kết thúc *</label>
+                    <input 
+                      type="date" 
+                      className="form-control" 
+                      value={blockFormData.endDate}
+                      onChange={(e) => setBlockFormData({ ...blockFormData, endDate: e.target.value })}
+                      min={blockFormData.startDate || getMinDate()}
+                      required
+                    />
+                    <small className="text-muted">Ngày kết thúc phải sau hoặc bằng ngày bắt đầu</small>
+                  </div>
+                )}
+                {!blockFormData.isMultipleDays && (
+                  <div className="mb-3">
+                    <div className="form-check">
+                      <input
+                        className="form-check-input"
+                        type="checkbox"
+                        id="isAllDay"
+                        checked={blockFormData.isAllDay}
+                        onChange={(e) => setBlockFormData({ ...blockFormData, isAllDay: e.target.checked })}
+                      />
+                      <label className="form-check-label" htmlFor="isAllDay">
+                        <strong>Cả ngày</strong>
+                      </label>
+                    </div>
+                    <small className="text-muted d-block mt-1">
+                      Nếu chọn "Cả ngày", bạn sẽ chặn toàn bộ thời gian trong ngày
+                    </small>
+                  </div>
+                )}
+                {blockFormData.isMultipleDays && (
+                  <div className="alert alert-info mb-3">
+                    <i className="fa fa-info-circle me-2"></i>
+                    <strong>Lưu ý:</strong> Khi chọn nhiều ngày, hệ thống sẽ tự động chặn cả ngày cho tất cả các ngày đã chọn.
+                  </div>
+                )}
+                {!blockFormData.isAllDay && !blockFormData.isMultipleDays && (
+                  <>
+                    <div className="mb-3">
+                      <label className="form-label">Từ giờ *</label>
+                      <select
+                        className="form-select"
+                        value={blockFormData.startTime}
+                        onChange={(e) => setBlockFormData({ ...blockFormData, startTime: e.target.value })}
+                        required
+                      >
+                        <option value="">-- Chọn giờ bắt đầu --</option>
+                        {getHourOptions().slice(0, -1).map((hour) => (
+                          <option key={hour} value={hour}>
+                            {hour}
+                          </option>
+                        ))}
+                      </select>
+                      <small className="text-muted">Thời gian từ 8h sáng đến 5h chiều (08:00 - 17:00)</small>
+                    </div>
+                    <div className="mb-3">
+                      <label className="form-label">Đến giờ *</label>
+                      <select
+                        className="form-select"
+                        value={blockFormData.endTime}
+                        onChange={(e) => setBlockFormData({ ...blockFormData, endTime: e.target.value })}
+                        required
+                      >
+                        <option value="">-- Chọn giờ kết thúc --</option>
+                        {getHourOptions()
+                          .filter((hour) => {
+                            // Only show hours after startTime
+                            if (!blockFormData.startTime) return true;
+                            const startHour = parseInt(blockFormData.startTime.split(':')[0]);
+                            const endHour = parseInt(hour.split(':')[0]);
+                            return endHour > startHour;
+                          })
+                          .map((hour) => (
+                            <option key={hour} value={hour}>
+                              {hour}
+                            </option>
+                          ))}
+                      </select>
+                      <small className="text-muted">Thời gian kết thúc phải sau thời gian bắt đầu (tối đa 18:00)</small>
+                    </div>
+                  </>
+                )}
                 <div className="mb-3">
-                  <label className="form-label">Từ giờ *</label>
-                  <input 
-                    type="time" 
-                    className="form-control" 
-                    value={blockFormData.startTime}
-                    onChange={(e) => setBlockFormData({ ...blockFormData, startTime: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="mb-3">
-                  <label className="form-label">Đến giờ *</label>
-                  <input 
-                    type="time" 
-                    className="form-control" 
-                    value={blockFormData.endTime}
-                    onChange={(e) => setBlockFormData({ ...blockFormData, endTime: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="mb-3">
-                  <label className="form-label">Lý do</label>
+                  <label className="form-label">Lý do <span className="text-danger">*</span></label>
                   <textarea 
                     className="form-control" 
                     rows={3} 
                     placeholder="Nhập lý do chặn thời gian..."
                     value={blockFormData.reason}
                     onChange={(e) => setBlockFormData({ ...blockFormData, reason: e.target.value })}
+                    required
                   ></textarea>
+                  <small className="text-muted">Lý do là bắt buộc</small>
                 </div>
               </div>
               <div className="modal-footer">
@@ -642,7 +1114,15 @@ export default function SchedulePage() {
                   onClick={() => {
                     setShowBlockModal(false);
                     setErrorMessage('');
-                    setBlockFormData({ date: '', startTime: '', endTime: '', reason: '' });
+                    setBlockFormData({ 
+                      startDate: '', 
+                      endDate: '', 
+                      startTime: '08:00', 
+                      endTime: '18:00', 
+                      reason: '', 
+                      isAllDay: false,
+                      isMultipleDays: false,
+                    });
                   }}
                 >
                   Hủy

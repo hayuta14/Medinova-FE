@@ -62,13 +62,13 @@ export default function SignupPage() {
       try {
         const authApi = getAuthentication();
         const response = await authApi.register({
-          email,
-          password,
-          fullName,
-          phone: phone || undefined,
+            email,
+            password,
+            fullName,
+            phone: phone || undefined,
         });
 
-        // Handle successful registration
+            // Handle successful registration
         console.log('Registration successful:', response);
         
         // API trả về: { success: true, message: "...", data: { token: "...", ... } }
@@ -98,15 +98,15 @@ export default function SignupPage() {
           }
         }
         
-        // Show success message
-        setShowSuccess(true);
-        // Reset form
-        setEmail('');
-        setPassword('');
-        setFullName('');
-        setPhone('');
+            // Show success message
+            setShowSuccess(true);
+            // Reset form
+            setEmail('');
+            setPassword('');
+            setFullName('');
+            setPhone('');
         // Redirect to login page after 2 seconds (or home if token was received)
-        setTimeout(() => {
+            setTimeout(() => {
           if (token) {
             router.push('/');
           } else {

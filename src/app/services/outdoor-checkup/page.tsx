@@ -1447,8 +1447,13 @@ export default function OutdoorCheckupPage() {
                   className="modal show d-block" 
                   style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}
                   tabIndex={-1}
+                  onClick={(e) => {
+                    if (e.target === e.currentTarget) {
+                      setShowTimeExpiredModal(false);
+                    }
+                  }}
                 >
-                  <div className="modal-dialog modal-dialog-centered">
+                  <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
                     <div className="modal-content">
                       <div className="modal-header bg-danger text-white">
                         <h5 className="modal-title">

@@ -501,8 +501,21 @@ export default function Search() {
 
       {/* Booking Modal */}
       {showBookingModal && selectedDoctor && (
-        <div className="modal fade show" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex={-1}>
-          <div className="modal-dialog modal-lg">
+        <div 
+          className="modal fade show" 
+          style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }} 
+          tabIndex={-1}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowBookingModal(false);
+              setSelectedDoctor(null);
+              setSelectedDate('');
+              setSelectedTime('');
+              setBookingForm({ name: '', phone: '', email: '', reason: '' });
+            }
+          }}
+        >
+          <div className="modal-dialog modal-lg" onClick={(e) => e.stopPropagation()}>
             <div className="modal-content">
               <div className="modal-header bg-success text-white">
                 <h5 className="modal-title">

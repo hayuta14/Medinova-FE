@@ -89,7 +89,7 @@ export const getUser = (): any | null => {
         // Có thể có user info trong state
         if (parsed?.state?.user) {
           return parsed.state.user;
-        }
+      }
         if (parsed?.user) {
           return parsed.user;
         }

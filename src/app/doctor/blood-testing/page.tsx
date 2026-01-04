@@ -119,8 +119,17 @@ export default function BloodTestingPage() {
 
       {/* Request Test Modal */}
       {showRequestModal && (
-        <div className="modal fade show" style={{ display: 'block' }} tabIndex={-1}>
-          <div className="modal-dialog">
+        <div 
+          className="modal fade show" 
+          style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }} 
+          tabIndex={-1}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowRequestModal(false);
+            }
+          }}
+        >
+          <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">Tạo yêu cầu xét nghiệm</h5>
@@ -169,8 +178,17 @@ export default function BloodTestingPage() {
 
       {/* Test Result Modal */}
       {selectedTest && (
-        <div className="modal fade show" style={{ display: 'block' }} tabIndex={-1}>
-          <div className="modal-dialog modal-lg">
+        <div 
+          className="modal fade show" 
+          style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }} 
+          tabIndex={-1}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setSelectedTest(null);
+            }
+          }}
+        >
+          <div className="modal-dialog modal-lg" onClick={(e) => e.stopPropagation()}>
             <div className="modal-content">
               <div className="modal-header bg-success text-white">
                 <h5 className="modal-title">Kết quả xét nghiệm</h5>

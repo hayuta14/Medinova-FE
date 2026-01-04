@@ -14,8 +14,8 @@ export default function MedicalHistoryPage() {
 
   useEffect(() => {
     // Fetch medical history từ API
-    const fetchMedicalHistory = async () => {
-      try {
+      const fetchMedicalHistory = async () => {
+        try {
         const profileApi = getUserProfile();
         const response = await profileApi.getMedicalHistory();
 
@@ -29,65 +29,65 @@ export default function MedicalHistoryPage() {
           setMedicalHistory(Array.isArray(historyData.history) ? historyData.history : []);
         } else if (Array.isArray(historyData)) {
           setMedicalHistory(historyData);
-        } else {
+          } else {
           setMedicalHistory([]);
-        }
+          }
       } catch (error: any) {
-        console.error('Error fetching medical history:', error);
+          console.error('Error fetching medical history:', error);
         setMedicalHistory([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+        } finally {
+          setIsLoading(false);
+        }
+      };
 
-    fetchMedicalHistory();
+      fetchMedicalHistory();
   }, []);
 
   return (
     <RequireAuth>
-      <>
-        <Topbar />
-        <Navbar />
-        <div className="container-fluid py-5">
-          <div className="container">
-            <div className="text-center mx-auto mb-5" style={{ maxWidth: '500px' }}>
-              <h5 className="d-inline-block text-primary text-uppercase border-bottom border-5">
-                Medical History
-              </h5>
-              <h1 className="display-4">Your Medical History</h1>
-            </div>
+    <>
+      <Topbar />
+      <Navbar />
+      <div className="container-fluid py-5">
+        <div className="container">
+          <div className="text-center mx-auto mb-5" style={{ maxWidth: '500px' }}>
+            <h5 className="d-inline-block text-primary text-uppercase border-bottom border-5">
+              Medical History
+            </h5>
+            <h1 className="display-4">Your Medical History</h1>
+          </div>
 
-            {isLoading ? (
-              <div className="text-center py-5">
-                <div className="spinner-border text-primary" role="status">
-                  <span className="visually-hidden">Loading...</span>
-                </div>
+          {isLoading ? (
+            <div className="text-center py-5">
+              <div className="spinner-border text-primary" role="status">
+                <span className="visually-hidden">Loading...</span>
               </div>
-            ) : medicalHistory.length === 0 ? (
-              <div className="card shadow">
-                <div className="card-body text-center py-5">
-                  <i className="fa fa-clipboard-list fa-3x text-muted mb-3"></i>
-                  <h4>No Medical History</h4>
-                  <p className="text-muted">You don't have any medical history records yet.</p>
-                </div>
+            </div>
+          ) : medicalHistory.length === 0 ? (
+            <div className="card shadow">
+              <div className="card-body text-center py-5">
+                <i className="fa fa-clipboard-list fa-3x text-muted mb-3"></i>
+                <h4>No Medical History</h4>
+                <p className="text-muted">You don't have any medical history records yet.</p>
               </div>
-            ) : (
-              <div className="row g-4">
+            </div>
+          ) : (
+            <div className="row g-4">
                 {medicalHistory.map((record: any, index: number) => (
                   <div key={record.id || index} className="col-lg-6">
-                    <div className="card shadow h-100">
-                      <div className="card-body">
-                        <div className="d-flex justify-content-between align-items-start mb-3">
-                          <div>
-                            <h5 className="card-title text-primary">
-                              <i className="fa fa-calendar-check me-2"></i>
+                  <div className="card shadow h-100">
+                    <div className="card-body">
+                      <div className="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                          <h5 className="card-title text-primary">
+                            <i className="fa fa-calendar-check me-2"></i>
                               {record.diagnosisDate || record.date || 'N/A'}
-                            </h5>
+                          </h5>
                             {record.medicalCondition && (
-                              <p className="text-muted mb-0">
+                          <p className="text-muted mb-0">
                                 <i className="fa fa-stethoscope me-2"></i>
                                 {record.medicalCondition}
-                              </p>
+                          </p>
                             )}
                           </div>
                         </div>
@@ -113,43 +113,43 @@ export default function MedicalHistoryPage() {
                           <div className="mb-3">
                             <h6 className="text-dark">Chronic Diseases:</h6>
                             <p className="mb-0">{record.chronicDiseases}</p>
-                          </div>
+                      </div>
                         )}
                         {record.previousSurgeries && (
-                          <div className="mb-3">
+                      <div className="mb-3">
                             <h6 className="text-dark">Previous Surgeries:</h6>
                             <p className="mb-0">{record.previousSurgeries}</p>
-                          </div>
+                      </div>
                         )}
                         {record.familyHistory && (
-                          <div className="mb-3">
+                        <div className="mb-3">
                             <h6 className="text-dark">Family History:</h6>
                             <p className="mb-0">{record.familyHistory}</p>
-                          </div>
-                        )}
-                        {record.notes && (
-                          <div>
-                            <h6 className="text-dark">Notes:</h6>
-                            <p className="mb-0 text-muted">{record.notes}</p>
-                          </div>
-                        )}
+                        </div>
+                      )}
+                      {record.notes && (
+                        <div>
+                          <h6 className="text-dark">Notes:</h6>
+                          <p className="mb-0 text-muted">{record.notes}</p>
+                        </div>
+                      )}
                         {record.createdAt && (
                           <small className="text-muted d-block mt-2">
                             <i className="fa fa-clock me-1"></i>
                             Created: {new Date(record.createdAt).toLocaleDateString()}
                           </small>
                         )}
-                      </div>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-        <Footer />
-        <BackToTop />
-      </>
+      </div>
+      <Footer />
+      <BackToTop />
+    </>
     </RequireAuth>
   );
 }

@@ -132,6 +132,14 @@ export default function AdminLayout({
       ],
     },
     {
+      path: '/admin/ambulances',
+      label: 'Ambulances',
+      icon: 'fa-ambulance',
+      submenu: [
+        { path: '/admin/ambulances', label: 'Danh sách xe cấp cứu' },
+      ],
+    },
+    {
       path: '/admin/doctors',
       label: 'Doctors',
       icon: 'fa-user-md',
@@ -140,7 +148,14 @@ export default function AdminLayout({
         { path: '/admin/doctors/pending', label: 'Bác sĩ chờ duyệt' },
       ],
     },
-    { path: '/admin/leaves', label: 'Leaves', icon: 'fa-calendar-times', submenu: [{ path: '/admin/leaves', label: 'Duyệt lịch nghỉ' }] },
+    { 
+      path: '/admin/approve-requests', 
+      label: 'Approve Requests', 
+      icon: 'fa-check-circle', 
+      submenu: [
+        { path: '/admin/approve-requests', label: 'Approve Requests' }
+      ] 
+    },
     {
       path: '/admin/blogs',
       label: 'Blogs',

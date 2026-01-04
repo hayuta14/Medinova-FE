@@ -92,8 +92,17 @@ export default function PharmacyPage() {
 
       {/* Create Prescription Modal */}
       {showCreateModal && (
-        <div className="modal fade show" style={{ display: 'block' }} tabIndex={-1}>
-          <div className="modal-dialog modal-lg">
+        <div 
+          className="modal fade show" 
+          style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }} 
+          tabIndex={-1}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowCreateModal(false);
+            }
+          }}
+        >
+          <div className="modal-dialog modal-lg" onClick={(e) => e.stopPropagation()}>
             <div className="modal-content">
               <div className="modal-header bg-success text-white">
                 <h5 className="modal-title">Tạo đơn thuốc mới</h5>

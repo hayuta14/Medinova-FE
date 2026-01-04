@@ -171,8 +171,17 @@ export default function AmbulancePage() {
 
       {/* Ambulance Detail Modal */}
       {selectedAmbulance && (
-        <div className="modal fade show" style={{ display: 'block' }} tabIndex={-1}>
-          <div className="modal-dialog">
+        <div 
+          className="modal fade show" 
+          style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }} 
+          tabIndex={-1}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setSelectedAmbulance(null);
+            }
+          }}
+        >
+          <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
             <div className="modal-content">
               <div className="modal-header bg-primary text-white">
                 <h5 className="modal-title">Chi tiết xe cứu thương</h5>

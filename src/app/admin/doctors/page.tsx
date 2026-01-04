@@ -236,6 +236,11 @@ export default function DoctorsPage() {
           className="modal fade show" 
           style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }}
           tabIndex={-1}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              handleCloseModal();
+            }
+          }}
         >
           <div className="modal-dialog modal-dialog-centered modal-lg">
             <div className="modal-content">

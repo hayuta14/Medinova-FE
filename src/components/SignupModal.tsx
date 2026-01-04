@@ -62,13 +62,13 @@ export default function SignupModal({ show, onHide, onSwitchToLogin }: SignupMod
       try {
         const authApi = getAuthentication();
         const response = await authApi.register({
-          email,
-          password,
-          fullName,
-          phone: phone || undefined,
+            email,
+            password,
+            fullName,
+            phone: phone || undefined,
         });
 
-        // Handle successful registration
+          // Handle successful registration
         console.log('Registration successful:', response);
         
         // API trả về: { success: true, message: "...", data: { token: "...", ... } }
@@ -98,12 +98,12 @@ export default function SignupModal({ show, onHide, onSwitchToLogin }: SignupMod
           }
         }
         
-        onHide();
-        // Reset form
-        setEmail('');
-        setPassword('');
-        setFullName('');
-        setPhone('');
+          onHide();
+          // Reset form
+          setEmail('');
+          setPassword('');
+          setFullName('');
+          setPhone('');
         
         // If token received, refresh page; otherwise switch to login modal
         if (token) {

@@ -175,6 +175,26 @@ export default function AdminLayout({
       ],
     },
     { path: '/admin/users', label: 'Users', icon: 'fa-users' },
+    {
+      path: '/admin/appointments',
+      label: 'Appointments',
+      icon: 'fa-calendar-check',
+    },
+    {
+      path: '/admin/emergencies',
+      label: 'Emergencies',
+      icon: 'fa-ambulance',
+    },
+    {
+      path: '/admin/blood-tests',
+      label: 'Blood Tests',
+      icon: 'fa-vial',
+    },
+    {
+      path: '/admin/pharmacy-orders',
+      label: 'Pharmacy Orders',
+      icon: 'fa-pills',
+    },
     { path: '/admin/settings', label: 'Settings', icon: 'fa-cog' },
   ];
 

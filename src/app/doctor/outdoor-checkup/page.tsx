@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { getAppointmentManagement } from '@/generated/api/endpoints/appointment-management/appointment-management';
 import { getDoctorManagement } from '@/generated/api/endpoints/doctor-management/doctor-management';
 import { getUser } from '@/utils/auth';
+import { api } from '@/lib/api';
 import type { AppointmentResponse } from '@/generated/api/models';
 
 export default function OutdoorCheckupPage() {
@@ -236,33 +237,56 @@ export default function OutdoorCheckupPage() {
   const handleMarkCompleted = async (id: number | undefined) => {
     if (!id) return;
     
+    if (!confirm('Bạn có chắc chắn muốn đánh dấu lịch hẹn này là hoàn thành?')) {
+      return;
+    }
+    
     try {
-      // TODO: Implement API call to mark appointment as completed
       const appointmentApi = getAppointmentManagement();
-      await appointmentApi.updateAppointmentStatus(id, { status: 'CANCELLED' }); // Temporary - need proper status
+      await appointmentApi.updateAppointmentStatusByDoctor(id, { status: 'COMPLETED' });
+      alert('Đã đánh dấu hoàn thành!');
       handleRefresh();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error marking as completed:', error);
-      setErrorMessage('Có lỗi xảy ra khi cập nhật trạng thái.');
+      const errorMessage = error?.response?.data?.message || error?.message || 'Có lỗi xảy ra khi cập nhật trạng thái.';
+      setErrorMessage(errorMessage);
+      alert(errorMessage);
     }
   };
 
   const handleMarkAbsent = async (id: number | undefined) => {
     if (!id) return;
     
+    if (!confirm('Bạn có chắc chắn muốn đánh dấu bệnh nhân này là vắng mặt?')) {
+      return;
+    }
+    
     try {
-      // TODO: Implement API call to mark patient as absent
-      console.log('Mark absent:', id);
+      const appointmentApi = getAppointmentManagement();
+      await appointmentApi.updateAppointmentStatusByDoctor(id, { status: 'CANCELLED' });
+      alert('Đã đánh dấu vắng mặt!');
       handleRefresh();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error marking as absent:', error);
-      setErrorMessage('Có lỗi xảy ra khi cập nhật trạng thái.');
+      const errorMessage = error?.response?.data?.message || error?.message || 'Có lỗi xảy ra khi cập nhật trạng thái.';
+      setErrorMessage(errorMessage);
+      alert(errorMessage);
     }
   };
 
-  const handleRequestLab = (id: number | undefined) => {
-    // TODO: Implement request lab test
-    console.log('Request lab:', id);
+  const handleRequestLab = async (id: number | undefined) => {
+    if (!id) return;
+    
+    // Navigate to blood test page or open modal to create blood test
+    // For now, just show a message
+    const appointment = appointments.find(apt => apt.id === id);
+    if (appointment) {
+      const confirmCreate = confirm(`Bạn muốn tạo yêu cầu xét nghiệm máu cho bệnh nhân ${appointment.patientName}?`);
+      if (confirmCreate) {
+        // Navigate to blood test page with patient info pre-filled
+        window.location.href = `/services/blood-testing?appointmentId=${id}&patientId=${appointment.patientId}&clinicId=${appointment.clinicId}`;
+      }
+    }
   };
 
   // Handle refresh button
@@ -574,7 +598,17 @@ export default function OutdoorCheckupPage() {
                     className="form-control" 
                     rows={4} 
                     placeholder="Nhập ghi chú khám, chẩn đoán, và kế hoạch điều trị..."
+                    value={selectedAppointment.notes || ''}
+                    onChange={(e) => {
+                      setSelectedAppointment({ ...selectedAppointment, notes: e.target.value });
+                    }}
                   ></textarea>
+                  {selectedAppointment.notes && (
+                    <small className="text-muted mt-1 d-block">
+                      <i className="fa fa-info-circle me-1"></i>
+                      Ghi chú đã lưu sẽ được hiển thị cho bệnh nhân trong lịch sử khám bệnh.
+                    </small>
+                  )}
                 </div>
               </div>
               <div className="modal-footer">
@@ -588,9 +622,27 @@ export default function OutdoorCheckupPage() {
                 <button 
                   type="button" 
                   className="btn btn-primary"
-                  onClick={() => {
-                    // TODO: Implement save consultation result
-                    console.log('Save consultation result');
+                  onClick={async () => {
+                    if (!selectedAppointment.id) return;
+                    
+                    try {
+                      // Call API directly since it may not be generated yet
+                      await api<AppointmentResponse>({
+                        url: `/api/appointments/${selectedAppointment.id}/notes`,
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        data: {
+                          notes: selectedAppointment.notes || ''
+                        }
+                      });
+                      alert('Đã lưu ghi chú khám thành công!');
+                      setSelectedAppointment(null);
+                      handleRefresh();
+                    } catch (error: any) {
+                      console.error('Error saving consultation notes:', error);
+                      const errorMessage = error?.response?.data?.message || error?.message || 'Có lỗi xảy ra khi lưu ghi chú.';
+                      alert(errorMessage);
+                    }
                   }}
                 >
                   <i className="fa fa-save me-2"></i>Lưu kết quả

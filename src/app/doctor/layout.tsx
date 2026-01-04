@@ -124,6 +124,7 @@ export default function DoctorLayout({
 
   const menuItems = [
     { path: '/doctor/dashboard', label: 'Tổng quan', icon: 'fa-tachometer-alt' },
+    { path: '/doctor/patients', label: 'Quản lý bệnh nhân', icon: 'fa-users' },
     { path: '/doctor/outdoor-checkup', label: 'Khám ngoại trú', icon: 'fa-stethoscope' },
     { path: '/doctor/emergency', label: 'Cấp cứu', icon: 'fa-ambulance', badge: 'hot' },
     { path: '/doctor/surgery', label: 'Phẫu thuật', icon: 'fa-procedures' },

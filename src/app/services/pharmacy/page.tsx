@@ -1,41 +1,262 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import Topbar from '@/components/Topbar';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import BackToTop from '@/components/BackToTop';
+import { getUser, isAuthenticated } from '@/utils/auth';
+import { getPharmacyOrderManagement } from '@/generated/api/endpoints/pharmacy-order-management/pharmacy-order-management';
+import { getClinicManagement } from '@/generated/api/endpoints/clinic-management/clinic-management';
+import { getAppointmentManagement } from '@/generated/api/endpoints/appointment-management/appointment-management';
+import LoginModal from '@/components/LoginModal';
+import SignupModal from '@/components/SignupModal';
 
 export default function PharmacyPage() {
+  const router = useRouter();
   const [step, setStep] = useState<'upload' | 'medicine' | 'checkout' | 'track'>('upload');
   const [prescriptionFile, setPrescriptionFile] = useState<File | null>(null);
-  const [selectedAppointment, setSelectedAppointment] = useState<string>('');
+  const [prescriptionFileUrl, setPrescriptionFileUrl] = useState<string>('');
+  const [selectedAppointmentId, setSelectedAppointmentId] = useState<number | null>(null);
+  const [appointments, setAppointments] = useState<any[]>([]);
   const [medicines, setMedicines] = useState<any[]>([]);
-  const [orderId, setOrderId] = useState<string>('');
+  const [orderId, setOrderId] = useState<number | null>(null);
+  const [selectedClinicId, setSelectedClinicId] = useState<number | null>(null);
+  const [clinics, setClinics] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingAppointments, setIsLoadingAppointments] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [deliveryInfo, setDeliveryInfo] = useState({
+    name: '',
+    phone: '',
+    address: '',
+  });
+  const [paymentMethod, setPaymentMethod] = useState<string>('CASH_ON_DELIVERY');
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showSignupModal, setShowSignupModal] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Check authentication
+  useEffect(() => {
+    const checkAuth = () => {
+      if (typeof window === 'undefined') {
+        return;
+      }
+      const authenticated = isAuthenticated();
+      setIsCheckingAuth(false);
+      if (!authenticated) {
+        setShowLoginModal(true);
+      } else {
+        loadClinics();
+        loadMyAppointments();
+        const user = getUser();
+        if (user) {
+          setDeliveryInfo({
+            name: user.fullName || '',
+            phone: user.phone || '',
+            address: '',
+          });
+        }
+      }
+    };
+    checkAuth();
+
+    const handleAuthChange = () => {
+      const authenticated = isAuthenticated();
+      if (authenticated) {
+        setShowLoginModal(false);
+        setShowSignupModal(false);
+        loadClinics();
+        loadMyAppointments();
+        const user = getUser();
+        if (user) {
+          setDeliveryInfo({
+            name: user.fullName || '',
+            phone: user.phone || '',
+            address: '',
+          });
+        }
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('auth-change', handleAuthChange);
+      return () => {
+        window.removeEventListener('auth-change', handleAuthChange);
+      };
+    }
+  }, []);
+
+  const loadClinics = useCallback(async () => {
+    try {
+      const clinicApi = getClinicManagement();
+      const response = await clinicApi.getAllClinics();
+      setClinics(Array.isArray(response) ? response : []);
+    } catch (error) {
+      console.error('Error loading clinics:', error);
+      setClinics([]);
+    }
+  }, []);
+
+  const loadMyAppointments = useCallback(async () => {
+    try {
+      setIsLoadingAppointments(true);
+      const appointmentApi = getAppointmentManagement();
+      const response = await appointmentApi.getMyAppointments();
+      const apps = Array.isArray(response) ? response : [];
+      // Only show completed appointments
+      setAppointments(apps.filter((app: any) => app.status === 'COMPLETED'));
+    } catch (error) {
+      console.error('Error loading appointments:', error);
+      setAppointments([]);
+    } finally {
+      setIsLoadingAppointments(false);
+    }
+  }, []);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setPrescriptionFile(e.target.files[0]);
+      const file = e.target.files[0];
+      setPrescriptionFile(file);
+      // TODO: Upload file to server and get URL
+      // For now, we'll use a placeholder
+      setPrescriptionFileUrl(`/uploads/${file.name}`);
       setStep('medicine');
+      // Simulate extracting medicines from prescription
+      // In real app, this would be done by OCR or manual entry
+      setMedicines([
+        { name: 'Paracetamol 500mg', quantity: 2, price: 5.0, total: 10.0 },
+        { name: 'Amoxicillin 250mg', quantity: 1, price: 8.0, total: 8.0 },
+      ]);
     }
   };
 
-  const handleAppointmentSelect = (appointmentId: string) => {
-    setSelectedAppointment(appointmentId);
+  const handleAppointmentSelect = (appointmentId: number) => {
+    setSelectedAppointmentId(appointmentId);
     setStep('medicine');
+    // TODO: Extract medicines from appointment prescription
+    // For now, use sample data
+    setMedicines([
+      { name: 'Paracetamol 500mg', quantity: 2, price: 5.0, total: 10.0 },
+      { name: 'Amoxicillin 250mg', quantity: 1, price: 8.0, total: 8.0 },
+    ]);
   };
 
-  const handleCheckout = () => {
-    // TODO: Call API to create order
-    const id = 'ORD-' + Date.now();
-    setOrderId(id);
-    setStep('track');
+  const handleCheckout = async () => {
+    if (!selectedClinicId) {
+      setErrorMessage('Vui lòng chọn phòng khám.');
+      return;
+    }
+
+    if (medicines.length === 0) {
+      setErrorMessage('Vui lòng thêm thuốc vào đơn.');
+      return;
+    }
+
+    if (!deliveryInfo.name || !deliveryInfo.phone || !deliveryInfo.address) {
+      setErrorMessage('Vui lòng điền đầy đủ thông tin giao hàng.');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setErrorMessage('');
+
+      const pharmacyApi = getPharmacyOrderManagement();
+      const subtotal = medicines.reduce((sum, m) => sum + m.total, 0);
+      const deliveryFee = 5.0;
+
+      const response = await pharmacyApi.createPharmacyOrder({
+        clinicId: selectedClinicId,
+        appointmentId: selectedAppointmentId || undefined,
+        prescriptionFileUrl: prescriptionFileUrl || undefined,
+        items: medicines.map(m => ({
+          medicineName: m.name,
+          quantity: m.quantity,
+          price: m.price,
+          notes: '',
+        })),
+        deliveryAddress: deliveryInfo.address,
+        deliveryPhone: deliveryInfo.phone,
+        deliveryName: deliveryInfo.name,
+        paymentMethod: paymentMethod,
+        notes: '',
+      });
+
+      const order = (response as any)?.data || response;
+      if (order && order.id) {
+        setOrderId(order.id);
+        setStep('track');
+      } else {
+        throw new Error('Failed to create pharmacy order: No order ID returned');
+      }
+    } catch (error: any) {
+      console.error('Error creating pharmacy order:', error);
+      const errorMsg = error?.response?.data?.message || error?.message || 'Có lỗi xảy ra khi tạo đơn thuốc. Vui lòng thử lại.';
+      setErrorMessage(errorMsg);
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  const handleCloseLoginModal = () => {
+    if (!isAuthenticated()) {
+      router.push('/');
+    } else {
+      setShowLoginModal(false);
+    }
+  };
+
+  const handleCloseSignupModal = () => {
+    setShowSignupModal(false);
+    if (!isAuthenticated()) {
+      setShowLoginModal(true);
+    }
+  };
+
+  const handleSwitchToSignup = () => {
+    setShowLoginModal(false);
+    setShowSignupModal(true);
+  };
+
+  const handleSwitchToLogin = () => {
+    setShowSignupModal(false);
+    setShowLoginModal(true);
+  };
+
+  if (isCheckingAuth) {
+    return (
+      <>
+        <Topbar />
+        <Navbar />
+        <div className="container-fluid py-5">
+          <div className="container">
+            <div className="text-center">
+              <div className="spinner-border text-primary" role="status">
+                <span className="visually-hidden">Loading...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
       <Topbar />
       <Navbar />
+      <LoginModal 
+        show={showLoginModal && !isAuthenticated()} 
+        onHide={handleCloseLoginModal}
+        onSwitchToSignup={handleSwitchToSignup}
+      />
+      <SignupModal 
+        show={showSignupModal && !isAuthenticated()} 
+        onHide={handleCloseSignupModal}
+        onSwitchToLogin={handleSwitchToLogin}
+      />
 
       <div className="container-fluid py-5">
         <div className="container">
@@ -95,28 +316,40 @@ export default function PharmacyPage() {
                         <div className="card border-info">
                           <div className="card-body">
                             <h5 className="mb-3">Or Choose from Appointment</h5>
-                            <div className="list-group">
-                              <button
-                                className="list-group-item list-group-item-action"
-                                onClick={() => handleAppointmentSelect('APT-001')}
-                              >
-                                <div>
-                                  <strong>Appointment #APT-001</strong>
-                                  <br />
-                                  <small>Dr. Smith - Dec 30, 2024</small>
-                                </div>
-                              </button>
-                              <button
-                                className="list-group-item list-group-item-action"
-                                onClick={() => handleAppointmentSelect('APT-002')}
-                              >
-                                <div>
-                                  <strong>Appointment #APT-002</strong>
-                                  <br />
-                                  <small>Dr. Johnson - Dec 28, 2024</small>
-                                </div>
-                              </button>
-                            </div>
+                            {isLoadingAppointments ? (
+                              <div className="text-center py-3">
+                                <span className="spinner-border spinner-border-sm text-primary" role="status"></span>
+                                <small className="ms-2 text-muted">Đang tải...</small>
+                              </div>
+                            ) : appointments.length === 0 ? (
+                              <div className="text-center py-3 text-muted">
+                                <i className="fa fa-calendar-times fa-2x mb-2"></i>
+                                <p className="mb-0">Không có lịch hẹn đã hoàn thành</p>
+                              </div>
+                            ) : (
+                              <div className="list-group">
+                                {appointments.map((appointment) => (
+                                  <button
+                                    key={appointment.id}
+                                    className={`list-group-item list-group-item-action ${
+                                      selectedAppointmentId === appointment.id ? 'active' : ''
+                                    }`}
+                                    onClick={() => handleAppointmentSelect(appointment.id)}
+                                  >
+                                    <div>
+                                      <strong>Appointment #{appointment.id}</strong>
+                                      <br />
+                                      <small>
+                                        {appointment.doctorName || 'Doctor'} - {' '}
+                                        {appointment.appointmentTime 
+                                          ? new Date(appointment.appointmentTime).toLocaleDateString('vi-VN')
+                                          : 'N/A'}
+                                      </small>
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -143,10 +376,10 @@ export default function PharmacyPage() {
                         Prescription uploaded: {prescriptionFile.name}
                       </div>
                     )}
-                    {selectedAppointment && (
+                    {selectedAppointmentId && (
                       <div className="alert alert-info">
                         <i className="fa fa-calendar me-2"></i>
-                        Selected appointment: {selectedAppointment}
+                        Selected appointment: #{selectedAppointmentId}
                       </div>
                     )}
                     <div className="table-responsive">
@@ -188,14 +421,36 @@ export default function PharmacyPage() {
                         )}
                       </table>
                     </div>
+                    <div className="mb-3">
+                      <label className="form-label">Chọn phòng khám *</label>
+                      <select
+                        className="form-select"
+                        value={selectedClinicId || ''}
+                        onChange={(e) => setSelectedClinicId(e.target.value ? Number(e.target.value) : null)}
+                      >
+                        <option value="">-- Chọn phòng khám --</option>
+                        {clinics.map((clinic) => (
+                          <option key={clinic.id} value={clinic.id}>
+                            {clinic.name || `Clinic ${clinic.id}`}
+                            {clinic.address && ` - ${clinic.address}`}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                     {medicines.length > 0 && (
                       <div className="mt-4">
                         <button
                           className="btn btn-success btn-lg w-100"
                           onClick={() => setStep('checkout')}
+                          disabled={!selectedClinicId}
                         >
                           Proceed to Checkout
                         </button>
+                        {!selectedClinicId && (
+                          <small className="text-danger d-block mt-2 text-center">
+                            Vui lòng chọn phòng khám
+                          </small>
+                        )}
                       </div>
                     )}
                   </div>
@@ -214,27 +469,55 @@ export default function PharmacyPage() {
                     >
                       <i className="fa fa-arrow-left me-2"></i>Back
                     </button>
+                    {errorMessage && (
+                      <div className="alert alert-danger" role="alert">
+                        <i className="fa fa-exclamation-circle me-2"></i>
+                        {errorMessage}
+                      </div>
+                    )}
                     <div className="row">
                       <div className="col-md-8">
                         <h5>Delivery Information</h5>
                         <div className="mb-3">
-                          <label className="form-label">Full Name</label>
-                          <input type="text" className="form-control" />
+                          <label className="form-label">Full Name *</label>
+                          <input 
+                            type="text" 
+                            className="form-control" 
+                            value={deliveryInfo.name}
+                            onChange={(e) => setDeliveryInfo({ ...deliveryInfo, name: e.target.value })}
+                            required
+                          />
                         </div>
                         <div className="mb-3">
-                          <label className="form-label">Phone</label>
-                          <input type="tel" className="form-control" />
+                          <label className="form-label">Phone *</label>
+                          <input 
+                            type="tel" 
+                            className="form-control" 
+                            value={deliveryInfo.phone}
+                            onChange={(e) => setDeliveryInfo({ ...deliveryInfo, phone: e.target.value })}
+                            required
+                          />
                         </div>
                         <div className="mb-3">
-                          <label className="form-label">Address</label>
-                          <textarea className="form-control" rows={3}></textarea>
+                          <label className="form-label">Address *</label>
+                          <textarea 
+                            className="form-control" 
+                            rows={3}
+                            value={deliveryInfo.address}
+                            onChange={(e) => setDeliveryInfo({ ...deliveryInfo, address: e.target.value })}
+                            required
+                          ></textarea>
                         </div>
                         <div className="mb-3">
                           <label className="form-label">Payment Method</label>
-                          <select className="form-select">
-                            <option>Cash on Delivery</option>
-                            <option>Credit Card</option>
-                            <option>Bank Transfer</option>
+                          <select 
+                            className="form-select"
+                            value={paymentMethod}
+                            onChange={(e) => setPaymentMethod(e.target.value)}
+                          >
+                            <option value="CASH_ON_DELIVERY">Cash on Delivery</option>
+                            <option value="CREDIT_CARD">Credit Card</option>
+                            <option value="BANK_TRANSFER">Bank Transfer</option>
                           </select>
                         </div>
                       </div>
@@ -245,7 +528,7 @@ export default function PharmacyPage() {
                             <hr />
                             <div className="d-flex justify-content-between">
                               <span>Subtotal</span>
-                              <span>$0.00</span>
+                              <span>${medicines.reduce((sum, m) => sum + m.total, 0).toFixed(2)}</span>
                             </div>
                             <div className="d-flex justify-content-between">
                               <span>Delivery</span>
@@ -254,13 +537,21 @@ export default function PharmacyPage() {
                             <hr />
                             <div className="d-flex justify-content-between fw-bold">
                               <span>Total</span>
-                              <span>$5.00</span>
+                              <span>${(medicines.reduce((sum, m) => sum + m.total, 0) + 5.0).toFixed(2)}</span>
                             </div>
                             <button
                               className="btn btn-success w-100 mt-3"
                               onClick={handleCheckout}
+                              disabled={isLoading || !deliveryInfo.name || !deliveryInfo.phone || !deliveryInfo.address}
                             >
-                              Place Order
+                              {isLoading ? (
+                                <>
+                                  <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                                  Đang xử lý...
+                                </>
+                              ) : (
+                                'Place Order'
+                              )}
                             </button>
                           </div>
                         </div>
@@ -279,6 +570,14 @@ export default function PharmacyPage() {
                     <div className="alert alert-success">
                       <h5>Order ID: {orderId}</h5>
                       <p>Your order has been placed successfully!</p>
+                    </div>
+                    <div className="mt-4">
+                      <button
+                        className="btn btn-primary w-100"
+                        onClick={() => router.push('/dashboard')}
+                      >
+                        Go to Dashboard
+                      </button>
                     </div>
                     <div className="timeline">
                       <div className="d-flex align-items-center mb-3">

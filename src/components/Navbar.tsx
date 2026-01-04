@@ -244,6 +244,9 @@ export default function Navbar() {
                       <Link href="/medical-history" className="dropdown-item">
                         <i className="fa fa-history me-2"></i>Medical History
                       </Link>
+                      <Link href="/dashboard" className="dropdown-item">
+                        <i className="fa fa-tachometer-alt me-2"></i>Dashboard
+                      </Link>
                           {/* Chỉ hiển thị Admin Panel khi role là ADMIN */}
                           {user && (user.role === 'ADMIN' || user.role === 'admin') && (
                             <Link href="/admin" className="dropdown-item">

@@ -1,9 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { getUser } from '@/utils/auth';
 import { getDoctorManagement } from '@/generated/api/endpoints/doctor-management/doctor-management';
+import { getDashboard } from '@/generated/api/endpoints/dashboard/dashboard';
+import { getAppointmentManagement } from '@/generated/api/endpoints/appointment-management/appointment-management';
+import { getEmergencyManagement } from '@/generated/api/endpoints/emergency-management/emergency-management';
 
 // Danh sách chuyên khoa
 const SPECIALIZATIONS = [
@@ -22,12 +25,12 @@ export default function DoctorDashboard() {
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [showUpdateForm, setShowUpdateForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [stats, setStats] = useState({
-    todayAppointments: 8,
-    activeEmergencies: 1,
-    pendingLabResults: 2,
-    upcomingSurgeries: 1,
-  });
+  const [stats, setStats] = useState<any>(null);
+  const [isLoadingStats, setIsLoadingStats] = useState(true);
+  const [todayAppointments, setTodayAppointments] = useState<any[]>([]);
+  const [activeEmergencies, setActiveEmergencies] = useState<any[]>([]);
+  const [isLoadingAppointments, setIsLoadingAppointments] = useState(true);
+  const [isLoadingEmergencies, setIsLoadingEmergencies] = useState(true);
 
   const [updateFormData, setUpdateFormData] = useState({
     specialization: '',
@@ -48,6 +51,58 @@ export default function DoctorDashboard() {
     if (userData) {
       loadDoctorProfile();
       checkPendingRequests();
+      loadDashboardStats();
+      loadTodayAppointments();
+      loadActiveEmergencies();
+    }
+  }, []);
+
+  const loadDashboardStats = useCallback(async () => {
+    try {
+      setIsLoadingStats(true);
+      const dashboardApi = getDashboard();
+      const response = await dashboardApi.getDoctorDashboardStats();
+      const statsData = (response as any)?.data || response;
+      setStats(statsData);
+    } catch (error: any) {
+      console.error('Error loading dashboard stats:', error);
+    } finally {
+      setIsLoadingStats(false);
+    }
+  }, []);
+
+  const loadTodayAppointments = useCallback(async () => {
+    try {
+      setIsLoadingAppointments(true);
+      const appointmentApi = getAppointmentManagement();
+      const response = await appointmentApi.getTodayAppointments();
+      const data = (response as any)?.data || response;
+      setTodayAppointments(Array.isArray(data) ? data : []);
+    } catch (error: any) {
+      console.error('Error loading today appointments:', error);
+      setTodayAppointments([]);
+    } finally {
+      setIsLoadingAppointments(false);
+    }
+  }, []);
+
+  const loadActiveEmergencies = useCallback(async () => {
+    try {
+      setIsLoadingEmergencies(true);
+      const emergencyApi = getEmergencyManagement();
+      const response = await emergencyApi.getMyEmergencies('PENDING');
+      const data = (response as any)?.data || response;
+      const allEmergencies = Array.isArray(data) ? data : [];
+      // Filter active emergencies (not completed or cancelled)
+      const active = allEmergencies.filter((e: any) => 
+        e.status !== 'COMPLETED' && e.status !== 'CANCELLED'
+      );
+      setActiveEmergencies(active);
+    } catch (error: any) {
+      console.error('Error loading active emergencies:', error);
+      setActiveEmergencies([]);
+    } finally {
+      setIsLoadingEmergencies(false);
     }
   }, []);
 
@@ -675,7 +730,13 @@ export default function DoctorDashboard() {
               <div className="d-flex justify-content-between align-items-center">
                 <div>
                   <h6 className="text-muted mb-2">Lịch khám hôm nay</h6>
-                  <h3 className="mb-0 text-primary">{stats.todayAppointments}</h3>
+                  <h3 className="mb-0 text-primary">
+                    {isLoadingStats ? (
+                      <span className="spinner-border spinner-border-sm" role="status"></span>
+                    ) : (
+                      stats?.todayAppointments || 0
+                    )}
+                  </h3>
                 </div>
                 <i className="fa fa-calendar-check fa-2x text-primary"></i>
               </div>
@@ -691,7 +752,13 @@ export default function DoctorDashboard() {
               <div className="d-flex justify-content-between align-items-center">
                 <div>
                   <h6 className="text-muted mb-2">Ca cấp cứu</h6>
-                  <h3 className="mb-0 text-danger">{stats.activeEmergencies}</h3>
+                  <h3 className="mb-0 text-danger">
+                    {isLoadingStats ? (
+                      <span className="spinner-border spinner-border-sm" role="status"></span>
+                    ) : (
+                      stats?.activeEmergencies || 0
+                    )}
+                  </h3>
                 </div>
                 <i className="fa fa-ambulance fa-2x text-danger"></i>
               </div>
@@ -706,8 +773,14 @@ export default function DoctorDashboard() {
             <div className="card-body">
               <div className="d-flex justify-content-between align-items-center">
                 <div>
-                  <h6 className="text-muted mb-2">Xét nghiệm chờ kết quả</h6>
-                  <h3 className="mb-0 text-warning">{stats.pendingLabResults}</h3>
+                  <h6 className="text-muted mb-2">Tổng lịch hẹn</h6>
+                  <h3 className="mb-0 text-warning">
+                    {isLoadingStats ? (
+                      <span className="spinner-border spinner-border-sm" role="status"></span>
+                    ) : (
+                      stats?.totalAppointments || 0
+                    )}
+                  </h3>
                 </div>
                 <i className="fa fa-vial fa-2x text-warning"></i>
               </div>
@@ -722,8 +795,14 @@ export default function DoctorDashboard() {
             <div className="card-body">
               <div className="d-flex justify-content-between align-items-center">
                 <div>
-                  <h6 className="text-muted mb-2">Ca phẫu thuật sắp tới</h6>
-                  <h3 className="mb-0 text-info">{stats.upcomingSurgeries}</h3>
+                  <h6 className="text-muted mb-2">Lịch hẹn sắp tới</h6>
+                  <h3 className="mb-0 text-info">
+                    {isLoadingStats ? (
+                      <span className="spinner-border spinner-border-sm" role="status"></span>
+                    ) : (
+                      stats?.upcomingAppointments || 0
+                    )}
+                  </h3>
                 </div>
                 <i className="fa fa-procedures fa-2x text-info"></i>
               </div>
@@ -743,20 +822,50 @@ export default function DoctorDashboard() {
               <h5 className="mb-0">⏳ Lịch sắp tới hôm nay</h5>
             </div>
             <div className="card-body">
-              <div className="list-group list-group-flush">
-                {[1, 2, 3, 4].map((item) => (
-                  <div key={item} className="list-group-item d-flex justify-content-between align-items-center">
-                    <div>
-                      <h6 className="mb-1">Bệnh nhân {item}</h6>
-                      <small className="text-muted">08:00 - Khám ngoại trú</small>
-                    </div>
-                    <span className="badge bg-primary rounded-pill">Sắp tới</span>
+              {isLoadingAppointments ? (
+                <div className="text-center py-4">
+                  <div className="spinner-border text-primary" role="status">
+                    <span className="visually-hidden">Loading...</span>
                   </div>
-                ))}
-              </div>
-              <Link href="/doctor/outdoor-checkup" className="btn btn-primary mt-3 w-100">
-                Xem tất cả lịch khám
-              </Link>
+                </div>
+              ) : todayAppointments.length === 0 ? (
+                <div className="text-center py-4">
+                  <i className="fa fa-calendar-times fa-3x text-muted mb-3"></i>
+                  <p className="text-muted">Không có lịch hẹn nào hôm nay</p>
+                </div>
+              ) : (
+                <>
+                  <div className="list-group list-group-flush">
+                    {todayAppointments.slice(0, 5).map((apt) => (
+                      <div key={apt.id} className="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                          <h6 className="mb-1">{apt.patientName || `Patient #${apt.patientId}`}</h6>
+                          <small className="text-muted">
+                            {apt.appointmentTime
+                              ? new Date(apt.appointmentTime).toLocaleTimeString('vi-VN', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })
+                              : 'N/A'}{' '}
+                            - {apt.clinicName || 'Clinic'}
+                          </small>
+                        </div>
+                        <span className={`badge rounded-pill ${
+                          apt.status === 'CONFIRMED' ? 'bg-primary' :
+                          apt.status === 'PENDING' ? 'bg-warning' :
+                          apt.status === 'COMPLETED' ? 'bg-success' :
+                          'bg-secondary'
+                        }`}>
+                          {apt.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <Link href="/doctor/outdoor-checkup" className="btn btn-primary mt-3 w-100">
+                    Xem tất cả lịch khám
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -767,15 +876,62 @@ export default function DoctorDashboard() {
               <h5 className="mb-0">🚨 Ca cấp cứu đang xử lý</h5>
             </div>
             <div className="card-body">
-              <div className="alert alert-danger mb-3">
-                <h6 className="alert-heading">Ca cấp cứu #001</h6>
-                <p className="mb-2">Bệnh nhân: Nguyễn Văn A</p>
-                <p className="mb-2">Thời gian: 07:30</p>
-                <small>Trạng thái: Đang xử lý</small>
-              </div>
-              <Link href="/doctor/emergency" className="btn btn-danger w-100">
-                Xem chi tiết
-              </Link>
+              {isLoadingEmergencies ? (
+                <div className="text-center py-4">
+                  <div className="spinner-border text-danger" role="status">
+                    <span className="visually-hidden">Loading...</span>
+                  </div>
+                </div>
+              ) : activeEmergencies.length === 0 ? (
+                <div className="text-center py-4">
+                  <i className="fa fa-ambulance fa-3x text-muted mb-3"></i>
+                  <p className="text-muted">Không có ca cấp cứu đang xử lý</p>
+                </div>
+              ) : (
+                <>
+                  {activeEmergencies.slice(0, 3).map((emergency) => (
+                    <div key={emergency.id} className="alert alert-danger mb-3">
+                      <h6 className="alert-heading">Ca cấp cứu #{emergency.id}</h6>
+                      <p className="mb-2">
+                        <strong>Bệnh nhân:</strong> {emergency.patientName || 'N/A'}
+                      </p>
+                      <p className="mb-2">
+                        <strong>Thời gian:</strong>{' '}
+                        {emergency.createdAt
+                          ? new Date(emergency.createdAt).toLocaleTimeString('vi-VN', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+                          : 'N/A'}
+                      </p>
+                      <p className="mb-2">
+                        <strong>Ưu tiên:</strong>{' '}
+                        <span className={`badge ${
+                          emergency.priority === 'CRITICAL' ? 'bg-danger' :
+                          emergency.priority === 'HIGH' ? 'bg-warning' :
+                          'bg-info'
+                        }`}>
+                          {emergency.priority || 'MEDIUM'}
+                        </span>
+                      </p>
+                      <small>
+                        <strong>Trạng thái:</strong>{' '}
+                        <span className={`badge ${
+                          emergency.status === 'PENDING' ? 'bg-warning' :
+                          emergency.status === 'DISPATCHED' ? 'bg-primary' :
+                          emergency.status === 'IN_TRANSIT' ? 'bg-info' :
+                          'bg-secondary'
+                        }`}>
+                          {emergency.status}
+                        </span>
+                      </small>
+                    </div>
+                  ))}
+                  <Link href="/doctor/emergency" className="btn btn-danger w-100">
+                    Xem tất cả ca cấp cứu
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>

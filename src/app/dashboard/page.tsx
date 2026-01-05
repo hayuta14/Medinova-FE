@@ -14,6 +14,7 @@ import { getBloodTestManagement } from '@/generated/api/endpoints/blood-test-man
 import { getPharmacyOrderManagement } from '@/generated/api/endpoints/pharmacy-order-management/pharmacy-order-management';
 import { getSurgeryConsultationManagement } from '@/generated/api/endpoints/surgery-consultation-management/surgery-consultation-management';
 import { getAmbulanceBookingManagement } from '@/generated/api/endpoints/ambulance-booking-management/ambulance-booking-management';
+import { getReviewManagement } from '@/generated/api/endpoints/review-management/review-management';
 
 export default function UserDashboard() {
   const [user, setUser] = useState<any>(null);
@@ -30,6 +31,11 @@ export default function UserDashboard() {
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState<'appointment' | 'emergency' | 'test' | 'order' | 'surgery' | 'ambulance' | null>(null);
   const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [selectedAppointmentForReview, setSelectedAppointmentForReview] = useState<any>(null);
+  const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '' });
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [appointmentReviews, setAppointmentReviews] = useState<Map<number, boolean>>(new Map());
 
   const loadDashboardData = useCallback(async () => {
     if (!isAuthenticated()) {
@@ -62,6 +68,9 @@ export default function UserDashboard() {
       if (appointmentsData.status === 'fulfilled') {
         const apts = (appointmentsData.value as any)?.data || appointmentsData.value || [];
         setAppointments(Array.isArray(apts) ? apts : []);
+        
+        // Check which appointments have reviews
+        checkAppointmentReviews(Array.isArray(apts) ? apts : []);
       }
 
       // Process emergencies
@@ -117,6 +126,80 @@ export default function UserDashboard() {
     setShowModal(false);
     setModalType(null);
     setSelectedItem(null);
+  };
+
+  const checkAppointmentReviews = async (appointmentsList: any[]) => {
+    try {
+      const reviewApi = getReviewManagement();
+      const myReviewsResponse = await reviewApi.getMyReviews();
+      const reviews = Array.isArray(myReviewsResponse) ? myReviewsResponse : [];
+      
+      const reviewMap = new Map<number, boolean>();
+      appointmentsList.forEach((apt) => {
+        if (apt.id) {
+          const hasReview = reviews.some((review: any) => review.appointmentId === apt.id);
+          reviewMap.set(apt.id, hasReview);
+        }
+      });
+      
+      setAppointmentReviews(reviewMap);
+    } catch (error) {
+      console.error('Error checking appointment reviews:', error);
+    }
+  };
+
+  const canReviewAppointment = (appointment: any): boolean => {
+    const status = appointment.status?.toUpperCase();
+    if (status !== 'REVIEW' && status !== 'COMPLETED') {
+      return false;
+    }
+    if (appointment.id && appointmentReviews.get(appointment.id)) {
+      return false;
+    }
+    return true;
+  };
+
+  const handleReviewClick = (appointment: any) => {
+    setSelectedAppointmentForReview(appointment);
+    setReviewForm({ rating: 5, comment: '' });
+    setShowReviewModal(true);
+  };
+
+  const handleSubmitReview = async () => {
+    if (!selectedAppointmentForReview || !selectedAppointmentForReview.doctorId) {
+      alert('Không tìm thấy thông tin bác sĩ.');
+      return;
+    }
+
+    if (!reviewForm.rating || reviewForm.rating < 1 || reviewForm.rating > 5) {
+      alert('Vui lòng chọn đánh giá từ 1 đến 5 sao.');
+      return;
+    }
+
+    try {
+      setIsSubmittingReview(true);
+      const reviewApi = getReviewManagement();
+      await reviewApi.createReview({
+        doctorId: selectedAppointmentForReview.doctorId,
+        appointmentId: selectedAppointmentForReview.id,
+        rating: reviewForm.rating,
+        comment: reviewForm.comment || undefined,
+      });
+
+      alert('Cảm ơn bạn đã đánh giá bác sĩ!');
+      setShowReviewModal(false);
+      setSelectedAppointmentForReview(null);
+      setReviewForm({ rating: 5, comment: '' });
+      
+      // Reload dashboard data
+      await loadDashboardData();
+    } catch (error: any) {
+      console.error('Error submitting review:', error);
+      const errorMsg = error?.response?.data?.message || error?.message || 'Có lỗi xảy ra khi gửi đánh giá.';
+      alert(errorMsg);
+    } finally {
+      setIsSubmittingReview(false);
+    }
   };
 
   return (
@@ -193,9 +276,14 @@ export default function UserDashboard() {
               <div className="card shadow-sm">
                 <div className="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                   <h5 className="mb-0">Upcoming Appointments</h5>
-                  <Link href="/services/outdoor-checkup" className="btn btn-sm btn-light">
-                    Book New
-                  </Link>
+                  <div className="d-flex gap-2">
+                    <Link href="/my-appointments" className="btn btn-sm btn-light">
+                      <i className="fa fa-list me-1"></i>Xem tất cả
+                    </Link>
+                    <Link href="/services/outdoor-checkup" className="btn btn-sm btn-light">
+                      <i className="fa fa-plus me-1"></i>Book New
+                    </Link>
+                  </div>
                 </div>
                 <div className="card-body">
                   {appointments.length === 0 ? (
@@ -221,21 +309,48 @@ export default function UserDashboard() {
                               </small>
                               <br />
                               <span className={`badge ${
-                                apt.status === 'CONFIRMED' ? 'bg-primary' :
+                                apt.status === 'CONFIRMED' ? 'bg-info' :
                                 apt.status === 'PENDING' ? 'bg-warning' :
+                                apt.status === 'CHECKED_IN' ? 'bg-primary' :
+                                apt.status === 'IN_PROGRESS' ? 'bg-warning text-dark' :
+                                apt.status === 'REVIEW' ? 'bg-primary' :
                                 apt.status === 'COMPLETED' ? 'bg-success' :
-                                apt.status === 'CANCELLED' ? 'bg-secondary' :
+                                apt.status === 'CANCELLED' || apt.status === 'CANCELLED_BY_PATIENT' || apt.status === 'CANCELLED_BY_DOCTOR' ? 'bg-danger' :
+                                apt.status === 'REJECTED' ? 'bg-danger' :
+                                apt.status === 'EXPIRED' ? 'bg-secondary' :
+                                apt.status === 'NO_SHOW' ? 'bg-secondary' :
                                 'bg-info'
                               }`}>
-                                {apt.status}
+                                {apt.status === 'REVIEW' ? 'Chờ đánh giá' : 
+                                 apt.status === 'REJECTED' ? 'Đã từ chối' :
+                                 apt.status === 'EXPIRED' ? 'Hết hạn' :
+                                 apt.status === 'CANCELLED_BY_DOCTOR' ? 'Đã hủy (bác sĩ)' :
+                                 apt.status === 'CANCELLED_BY_PATIENT' ? 'Đã hủy (bệnh nhân)' :
+                                 apt.status}
                               </span>
                             </div>
-                            <button 
-                              className="btn btn-outline-primary btn-sm"
-                              onClick={() => handleViewDetails('appointment', apt)}
-                            >
-                              View
-                            </button>
+                            <div className="d-flex gap-1">
+                              {canReviewAppointment(apt) && (
+                                <button 
+                                  className="btn btn-warning btn-sm"
+                                  onClick={() => handleReviewClick(apt)}
+                                  title="Đánh giá bác sĩ"
+                                >
+                                  <i className="fa fa-star"></i>
+                                </button>
+                              )}
+                              {apt.id && appointmentReviews.get(apt.id) && (
+                                <span className="badge bg-success align-self-center">
+                                  <i className="fa fa-check"></i>
+                                </span>
+                              )}
+                              <button 
+                                className="btn btn-outline-primary btn-sm"
+                                onClick={() => handleViewDetails('appointment', apt)}
+                              >
+                                View
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -538,11 +653,12 @@ export default function UserDashboard() {
                           <span className={`badge ${
                             selectedItem.status === 'CONFIRMED' ? 'bg-primary' :
                             selectedItem.status === 'PENDING' ? 'bg-warning' :
+                            selectedItem.status === 'REVIEW' ? 'bg-info' :
                             selectedItem.status === 'COMPLETED' ? 'bg-success' :
                             selectedItem.status === 'CANCELLED' ? 'bg-secondary' :
                             'bg-info'
                           }`}>
-                            {selectedItem.status}
+                            {selectedItem.status === 'REVIEW' ? 'Chờ đánh giá' : selectedItem.status}
                           </span>
                         </p>
                       </div>
@@ -551,6 +667,26 @@ export default function UserDashboard() {
                       <div className="mb-3">
                         <strong><i className="fa fa-sticky-note me-2 text-primary"></i>Notes:</strong>
                         <p className="mb-0">{selectedItem.notes}</p>
+                      </div>
+                    )}
+                    {canReviewAppointment(selectedItem) && (
+                      <div className="mb-3">
+                        <button
+                          className="btn btn-warning w-100"
+                          onClick={() => {
+                            setShowModal(false);
+                            handleReviewClick(selectedItem);
+                          }}
+                        >
+                          <i className="fa fa-star me-2"></i>
+                          Đánh giá bác sĩ
+                        </button>
+                      </div>
+                    )}
+                    {selectedItem.id && appointmentReviews.get(selectedItem.id) && (
+                      <div className="alert alert-success mb-0">
+                        <i className="fa fa-check-circle me-2"></i>
+                        Bạn đã đánh giá bác sĩ cho lịch hẹn này.
                       </div>
                     )}
                     {selectedItem.createdAt && (
@@ -837,6 +973,115 @@ export default function UserDashboard() {
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={handleCloseModal}>
                   Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Review Modal */}
+      {showReviewModal && selectedAppointmentForReview && (
+        <div
+          className="modal fade show"
+          style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }}
+          tabIndex={-1}
+          role="dialog"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowReviewModal(false);
+            }
+          }}
+        >
+          <div className="modal-dialog modal-dialog-centered" role="document" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content">
+              <div className="modal-header bg-warning text-white">
+                <h5 className="modal-title">
+                  <i className="fa fa-star me-2"></i>
+                  Đánh giá bác sĩ
+                </h5>
+                <button
+                  type="button"
+                  className="btn-close btn-close-white"
+                  onClick={() => setShowReviewModal(false)}
+                ></button>
+              </div>
+              <div className="modal-body">
+                <div className="mb-3">
+                  <h6>Bác sĩ: {selectedAppointmentForReview.doctorName || `Bác sĩ #${selectedAppointmentForReview.doctorId}`}</h6>
+                  <p className="text-muted mb-0">
+                    Lịch hẹn: {selectedAppointmentForReview.appointmentTime 
+                      ? new Date(selectedAppointmentForReview.appointmentTime).toLocaleString('vi-VN', {
+                          weekday: 'long',
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      : 'N/A'}
+                  </p>
+                </div>
+
+                <div className="mb-3">
+                  <label className="form-label fw-bold">
+                    Đánh giá <span className="text-danger">*</span>
+                  </label>
+                  <div className="d-flex gap-2 align-items-center">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        className="btn btn-link p-0"
+                        onClick={() => setReviewForm({ ...reviewForm, rating: star })}
+                        style={{ fontSize: '2rem', color: star <= reviewForm.rating ? '#ffc107' : '#ccc' }}
+                      >
+                        <i className="fa fa-star"></i>
+                      </button>
+                    ))}
+                    <span className="ms-2 fw-bold">
+                      {reviewForm.rating} / 5 sao
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mb-3">
+                  <label className="form-label">Nhận xét (tùy chọn)</label>
+                  <textarea
+                    className="form-control"
+                    rows={4}
+                    placeholder="Chia sẻ trải nghiệm của bạn về bác sĩ..."
+                    value={reviewForm.comment}
+                    onChange={(e) => setReviewForm({ ...reviewForm, comment: e.target.value })}
+                  ></textarea>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowReviewModal(false)}
+                  disabled={isSubmittingReview}
+                >
+                  Hủy
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-warning"
+                  onClick={handleSubmitReview}
+                  disabled={isSubmittingReview}
+                >
+                  {isSubmittingReview ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                      Đang gửi...
+                    </>
+                  ) : (
+                    <>
+                      <i className="fa fa-paper-plane me-2"></i>
+                      Gửi đánh giá
+                    </>
+                  )}
                 </button>
               </div>
             </div>

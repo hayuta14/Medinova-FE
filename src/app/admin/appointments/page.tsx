@@ -39,14 +39,28 @@ export default function AppointmentsPage() {
   };
 
   const getStatusBadgeClass = (status: string) => {
-    switch (status) {
+    switch (status?.toUpperCase()) {
       case 'CONFIRMED':
-        return 'bg-primary';
+        return 'bg-info';
       case 'PENDING':
         return 'bg-warning';
+      case 'CHECKED_IN':
+        return 'bg-primary';
+      case 'IN_PROGRESS':
+        return 'bg-warning text-dark';
+      case 'REVIEW':
+        return 'bg-primary';
       case 'COMPLETED':
         return 'bg-success';
       case 'CANCELLED':
+      case 'CANCELLED_BY_PATIENT':
+      case 'CANCELLED_BY_DOCTOR':
+        return 'bg-danger';
+      case 'NO_SHOW':
+        return 'bg-secondary';
+      case 'REJECTED':
+        return 'bg-danger';
+      case 'EXPIRED':
         return 'bg-secondary';
       default:
         return 'bg-info';

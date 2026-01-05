@@ -286,10 +286,16 @@ export default function PatientsPage() {
                       <td>{apt.clinicName || 'N/A'}</td>
                       <td>
                         <span className={`badge ${
-                          apt.status === 'CONFIRMED' ? 'bg-primary' :
+                          apt.status === 'CONFIRMED' ? 'bg-info' :
                           apt.status === 'PENDING' ? 'bg-warning' :
+                          apt.status === 'CHECKED_IN' ? 'bg-primary' :
+                          apt.status === 'IN_PROGRESS' ? 'bg-warning text-dark' :
+                          apt.status === 'REVIEW' ? 'bg-primary' :
                           apt.status === 'COMPLETED' ? 'bg-success' :
-                          apt.status === 'CANCELLED' ? 'bg-secondary' :
+                          apt.status === 'CANCELLED' || apt.status === 'CANCELLED_BY_PATIENT' || apt.status === 'CANCELLED_BY_DOCTOR' ? 'bg-danger' :
+                          apt.status === 'NO_SHOW' ? 'bg-secondary' :
+                          apt.status === 'REJECTED' ? 'bg-danger' :
+                          apt.status === 'EXPIRED' ? 'bg-secondary' :
                           'bg-info'
                         }`}>
                           {apt.status}

@@ -225,7 +225,32 @@ src/
 - Quản lý yêu cầu nghỉ phép của bác sĩ
 
 #### 8. Ranking (`/admin/ranking`)
-- Xếp hạng bác sĩ và phòng khám
+- `/admin/ranking/doctors` - Xếp hạng bác sĩ
+- `/admin/ranking/hospitals` - Xếp hạng phòng khám
+
+#### 9. Appointments (`/admin/appointments`)
+- Quản lý tất cả appointments
+- Xem appointments theo doctor, clinic, status
+
+#### 10. Blood Tests (`/admin/blood-tests`)
+- Quản lý yêu cầu xét nghiệm máu
+- Xem tests theo clinic, status
+- Upload kết quả xét nghiệm
+
+#### 11. Pharmacy Orders (`/admin/pharmacy-orders`)
+- Quản lý đơn hàng dược phẩm
+- Xem orders theo clinic, status
+- Cập nhật trạng thái đơn hàng
+
+#### 12. Emergencies (`/admin/emergencies`)
+- Quản lý các trường hợp khẩn cấp
+- Phân công bác sĩ và xe cứu thương
+
+#### 13. Approve Requests (`/admin/approve-requests`)
+- Phê duyệt các yêu cầu (doctors, etc.)
+
+#### 14. Settings (`/admin/settings`)
+- Cài đặt hệ thống
 
 ### Doctor Pages (`/doctor/*`)
 
@@ -246,6 +271,25 @@ src/
 
 #### 5. Notifications (`/doctor/notifications`)
 - Thông báo cho bác sĩ
+
+#### 6. Patients (`/doctor/patients`)
+- Quản lý danh sách bệnh nhân
+- Xem thông tin bệnh nhân
+
+#### 7. Blood Testing (`/doctor/blood-testing`)
+- Quản lý yêu cầu xét nghiệm máu
+- Upload kết quả xét nghiệm
+
+#### 8. Pharmacy (`/doctor/pharmacy`)
+- Quản lý đơn hàng dược phẩm
+- Xem và cập nhật trạng thái đơn hàng
+
+#### 9. Surgery (`/doctor/surgery`)
+- Quản lý tư vấn phẫu thuật
+- Phân công bác sĩ cho consultations
+
+#### 10. Outdoor Checkup (`/doctor/outdoor-checkup`)
+- Quản lý lịch khám tại nhà
 
 ### Service Pages (`/services/*`)
 

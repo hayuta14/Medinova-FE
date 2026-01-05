@@ -8,14 +8,24 @@ import { getDashboard } from '@/generated/api/endpoints/dashboard/dashboard';
 import { getAppointmentManagement } from '@/generated/api/endpoints/appointment-management/appointment-management';
 import { getEmergencyManagement } from '@/generated/api/endpoints/emergency-management/emergency-management';
 
-// Danh sách chuyên khoa
-const SPECIALIZATIONS = [
-  { value: 'Emergency Care', label: 'Cấp cứu' },
-  { value: 'Operation & Surgery', label: 'Phẫu thuật' },
-  { value: 'Outdoor Checkup', label: 'Khám ngoại trú' },
-  { value: 'Ambulance Service', label: 'Dịch vụ xe cứu thương' },
-  { value: 'Medicine & Pharmacy', label: 'Thuốc & Dược phẩm' },
-  { value: 'Blood Testing', label: 'Xét nghiệm máu' },
+// Danh sách chuyên khoa (Department enum)
+const DEPARTMENT_LIST = [
+  { value: 'GENERAL_MEDICINE', label: 'Nội tổng quát', icon: 'fa-stethoscope', color: 'primary' },
+  { value: 'PEDIATRICS', label: 'Nhi', icon: 'fa-child', color: 'info' },
+  { value: 'OBSTETRICS_GYNECOLOGY', label: 'Sản – Phụ', icon: 'fa-female', color: 'danger' },
+  { value: 'SURGERY', label: 'Ngoại tổng quát', icon: 'fa-cut', color: 'warning' },
+  { value: 'CARDIOLOGY', label: 'Tim mạch', icon: 'fa-heartbeat', color: 'danger' },
+  { value: 'NEUROLOGY', label: 'Thần kinh', icon: 'fa-brain', color: 'primary' },
+  { value: 'ORTHOPEDICS', label: 'Chấn thương chỉnh hình', icon: 'fa-bone', color: 'secondary' },
+  { value: 'ONCOLOGY', label: 'Ung bướu', icon: 'fa-ribbon', color: 'warning' },
+  { value: 'GASTROENTEROLOGY', label: 'Tiêu hóa', icon: 'fa-stomach', color: 'success' },
+  { value: 'RESPIRATORY', label: 'Hô hấp', icon: 'fa-lungs', color: 'info' },
+  { value: 'NEPHROLOGY', label: 'Thận', icon: 'fa-kidneys', color: 'primary' },
+  { value: 'ENDOCRINOLOGY', label: 'Nội tiết', icon: 'fa-flask', color: 'success' },
+  { value: 'HEMATOLOGY', label: 'Huyết học', icon: 'fa-tint', color: 'danger' },
+  { value: 'RHEUMATOLOGY', label: 'Cơ xương khớp', icon: 'fa-dumbbell', color: 'secondary' },
+  { value: 'DERMATOLOGY', label: 'Da liễu', icon: 'fa-hand-sparkles', color: 'warning' },
+  { value: 'INFECTIOUS_DISEASE', label: 'Truyền nhiễm', icon: 'fa-virus', color: 'danger' },
 ];
 
 export default function DoctorDashboard() {
@@ -33,7 +43,7 @@ export default function DoctorDashboard() {
   const [isLoadingEmergencies, setIsLoadingEmergencies] = useState(true);
 
   const [updateFormData, setUpdateFormData] = useState({
-    specialization: '',
+    department: '',
     experienceYears: '',
     licenseNumber: '',
     certificateFile: null as File | null,
@@ -179,7 +189,7 @@ export default function DoctorDashboard() {
         
         // Pre-fill form với dữ liệu hiện tại
         setUpdateFormData({
-          specialization: currentDoctor.specialization || '',
+          department: currentDoctor.department || currentDoctor.specialization || '',
           experienceYears: currentDoctor.experienceYears?.toString() || '',
           licenseNumber: currentDoctor.licenseNumber || '',
           certificateFile: null,
@@ -332,8 +342,8 @@ export default function DoctorDashboard() {
   const validateForm = (): boolean => {
     const errors: any = {};
     
-    if (!updateFormData.specialization) {
-      errors.specialization = 'Chuyên khoa là bắt buộc';
+    if (!updateFormData.department) {
+      errors.department = 'Chuyên khoa là bắt buộc';
     }
     
     if (!updateFormData.experienceYears) {
@@ -365,35 +375,36 @@ export default function DoctorDashboard() {
     try {
       setIsSubmitting(true);
       
-      // TODO: Implement API call to submit update request
-      // This should create a new update request that needs admin approval
-      // For now, we'll simulate the API call
-      
-      const formDataToSend = new FormData();
-      formDataToSend.append('specialization', updateFormData.specialization);
-      formDataToSend.append('experienceYears', updateFormData.experienceYears);
-      formDataToSend.append('licenseNumber', updateFormData.licenseNumber);
-      formDataToSend.append('bio', updateFormData.bio);
-      if (updateFormData.certificateFile) {
-        formDataToSend.append('certificate', updateFormData.certificateFile);
+      if (!doctorProfile?.id) {
+        alert('Không tìm thấy thông tin bác sĩ. Vui lòng thử lại!');
+        return;
       }
 
-      // Simulate API call - Replace with actual API endpoint when ready
-      // const doctorApi = getDoctorManagement();
-      // await doctorApi.submitUpdateRequest(formDataToSend);
+      // Call API to update doctor profile
+      const doctorApi = getDoctorManagement();
       
-      // For now, set pending request locally
-      setPendingRequest({ status: 'PENDING' });
+      const updateRequest: any = {
+        department: updateFormData.department,
+        experienceYears: parseInt(updateFormData.experienceYears) || 0,
+        bio: updateFormData.bio || '',
+      };
+
+      // Update doctor profile
+      const updatedDoctor = await doctorApi.updateDoctor(doctorProfile.id, updateRequest);
+      
+      // Reload doctor profile to get updated data
+      await loadDoctorProfile();
+      
       setShowUpdateForm(false);
-      alert('Yêu cầu cập nhật thông tin đã được gửi. Vui lòng đợi admin duyệt!');
+      alert('Cập nhật thông tin thành công!');
       
       // Reset form
       setUpdateFormData({
-        specialization: doctorProfile?.specialization || '',
-        experienceYears: doctorProfile?.experienceYears?.toString() || '',
+        department: updatedDoctor.department || doctorProfile?.department || '',
+        experienceYears: updatedDoctor.experienceYears?.toString() || doctorProfile?.experienceYears?.toString() || '',
         licenseNumber: doctorProfile?.licenseNumber || '',
         certificateFile: null,
-        bio: doctorProfile?.bio || '',
+        bio: updatedDoctor.bio || doctorProfile?.bio || '',
       });
     } catch (error: any) {
       console.error('Error submitting update request:', error);
@@ -409,7 +420,11 @@ export default function DoctorDashboard() {
       <div className="d-flex justify-content-between align-items-center mb-4">
         <div>
           <h2 className="mb-2">
-            👨‍⚕️ {user?.fullName || 'Bác sĩ'} - {user?.specialization || 'Chuyên khoa'}
+            👨‍⚕️ {user?.fullName || 'Bác sĩ'} - {doctorProfile?.departmentDisplayName || 
+              DEPARTMENT_LIST.find(d => d.value === doctorProfile?.department)?.label || 
+              doctorProfile?.department || 
+              doctorProfile?.specialization || 
+              'Chuyên khoa'}
           </h2>
           <p className="text-muted mb-0">
             📅 {new Date().toLocaleDateString('vi-VN', { 
@@ -528,7 +543,13 @@ export default function DoctorDashboard() {
                           </div>
                           <div className="col-md-6">
                             <label className="text-muted small">Chuyên khoa</label>
-                            <p className="fw-bold mb-0">{doctorProfile?.specialization || 'N/A'}</p>
+                            <p className="fw-bold mb-0">
+                              {doctorProfile?.departmentDisplayName || 
+                               DEPARTMENT_LIST.find(d => d.value === doctorProfile?.department)?.label || 
+                               doctorProfile?.department || 
+                               doctorProfile?.specialization || 
+                               'N/A'}
+                            </p>
                           </div>
                         </div>
                         <div className="row mb-3">
@@ -572,33 +593,79 @@ export default function DoctorDashboard() {
                 <div>
                   <div className="alert alert-info mb-4">
                     <i className="fa fa-info-circle me-2"></i>
-                    <strong>Lưu ý:</strong> Thông tin bạn chỉnh sửa sẽ cần được admin duyệt trước khi được cập nhật vào hồ sơ.
+                    <strong>Lưu ý:</strong> Bạn có thể cập nhật thông tin chuyên khoa, kinh nghiệm và mô tả. Thay đổi sẽ được áp dụng ngay lập tức.
                   </div>
                   
                   <form onSubmit={handleSubmitUpdateRequest}>
                     <div className="row">
-                      <div className="col-md-6 mb-3">
-                        <label htmlFor="specialization" className="form-label">
+                      <div className="col-12 mb-4">
+                        <label className="form-label">
                           Chuyên khoa <span className="text-danger">*</span>
                         </label>
-                        <select
-                          className={`form-select ${formErrors.specialization ? 'is-invalid' : ''}`}
-                          id="specialization"
-                          name="specialization"
-                          value={updateFormData.specialization}
-                          onChange={handleFormChange}
-                          disabled={pendingRequest?.status === 'PENDING' || isSubmitting}
-                          required
-                        >
-                          <option value="">-- Chọn chuyên khoa --</option>
-                          {SPECIALIZATIONS.map((spec) => (
-                            <option key={spec.value} value={spec.value}>
-                              {spec.label}
-                            </option>
-                          ))}
-                        </select>
-                        {formErrors.specialization && (
-                          <div className="invalid-feedback">{formErrors.specialization}</div>
+                        {formErrors.department && (
+                          <div className="text-danger small mb-2">
+                            <i className="fa fa-exclamation-circle me-1"></i>
+                            {formErrors.department}
+                          </div>
+                        )}
+                        <div className="row g-3">
+                          {DEPARTMENT_LIST.map((dept) => {
+                            const isSelected = updateFormData.department === dept.value;
+                            return (
+                              <div key={dept.value} className="col-md-6 col-lg-4">
+                                <button
+                                  type="button"
+                                  className={`btn w-100 p-3 text-start h-100 border-2 ${
+                                    isSelected
+                                      ? `btn-${dept.color} border-${dept.color} shadow`
+                                      : 'btn-outline-light border-light'
+                                  }`}
+                                  onClick={() => {
+                                    if (!pendingRequest?.status && !isSubmitting) {
+                                      setUpdateFormData(prev => ({ ...prev, department: dept.value }));
+                                      // Clear error
+                                      if (formErrors.department) {
+                                        setFormErrors((prev: any) => {
+                                          const newErrors = { ...prev };
+                                          delete newErrors.department;
+                                          return newErrors;
+                                        });
+                                      }
+                                    }
+                                  }}
+                                  disabled={pendingRequest?.status === 'PENDING' || isSubmitting}
+                                  style={{
+                                    transition: 'all 0.3s ease',
+                                    borderRadius: '12px',
+                                    backgroundColor: isSelected ? undefined : 'white'
+                                  }}
+                                >
+                                  <div className="d-flex align-items-center">
+                                    <i className={`fa ${dept.icon} fa-2x me-3 ${
+                                      isSelected ? 'text-white' : `text-${dept.color}`
+                                    }`}></i>
+                                    <div className="flex-grow-1">
+                                      <h6 className={`mb-0 ${isSelected ? 'text-white' : ''}`}>
+                                        {dept.label}
+                                      </h6>
+                                      {isSelected && (
+                                        <small className="text-white-50">
+                                          <i className="fa fa-check-circle me-1"></i>
+                                          Đã chọn
+                                        </small>
+                                      )}
+                                    </div>
+                                  </div>
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {!updateFormData.department && (
+                          <small className="text-muted d-block mt-2">
+                            <i className="fa fa-info-circle me-1"></i>
+                            Vui lòng chọn một chuyên khoa
+                          </small>
                         )}
                       </div>
                       
@@ -685,7 +752,7 @@ export default function DoctorDashboard() {
                           setFormErrors({});
                           // Reset form to current profile data
                           setUpdateFormData({
-                            specialization: doctorProfile?.specialization || '',
+                            department: doctorProfile?.department || doctorProfile?.specialization || '',
                             experienceYears: doctorProfile?.experienceYears?.toString() || '',
                             licenseNumber: doctorProfile?.licenseNumber || '',
                             certificateFile: null,

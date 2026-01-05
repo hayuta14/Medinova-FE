@@ -204,10 +204,25 @@ export default function OutdoorCheckupPage() {
       case 'CONFIRMED':
       case 'BOOKED':
         return 'bg-info';
+      case 'CHECKED_IN':
+        return 'bg-primary';
+      case 'IN_PROGRESS':
+        return 'bg-warning text-dark';
+      case 'REVIEW':
+        return 'bg-primary';
       case 'COMPLETED':
         return 'bg-success';
       case 'CANCELLED':
+      case 'CANCELLED_BY_PATIENT':
         return 'bg-danger';
+      case 'CANCELLED_BY_DOCTOR':
+        return 'bg-danger';
+      case 'NO_SHOW':
+        return 'bg-secondary';
+      case 'REJECTED':
+        return 'bg-danger';
+      case 'EXPIRED':
+        return 'bg-secondary';
       default:
         return 'bg-secondary';
     }
@@ -221,10 +236,25 @@ export default function OutdoorCheckupPage() {
       case 'CONFIRMED':
       case 'BOOKED':
         return 'Đã xác nhận';
+      case 'CHECKED_IN':
+        return 'Đã check-in';
+      case 'IN_PROGRESS':
+        return 'Đang khám';
+      case 'REVIEW':
+        return 'Chờ đánh giá';
       case 'COMPLETED':
         return 'Hoàn thành';
       case 'CANCELLED':
-        return 'Đã hủy';
+      case 'CANCELLED_BY_PATIENT':
+        return 'Đã hủy (bệnh nhân)';
+      case 'CANCELLED_BY_DOCTOR':
+        return 'Đã hủy (bác sĩ)';
+      case 'NO_SHOW':
+        return 'Vắng mặt';
+      case 'REJECTED':
+        return 'Đã từ chối';
+      case 'EXPIRED':
+        return 'Hết hạn';
       default:
         return status || 'N/A';
     }
@@ -234,21 +264,159 @@ export default function OutdoorCheckupPage() {
     setSelectedAppointment(appointment);
   };
 
-  const handleMarkCompleted = async (id: number | undefined) => {
+  // Check-in appointment (CONFIRMED → CHECKED_IN)
+  const handleCheckIn = async (id: number | undefined) => {
     if (!id) return;
     
-    if (!confirm('Bạn có chắc chắn muốn đánh dấu lịch hẹn này là hoàn thành?')) {
+    if (!confirm('Bạn có chắc chắn muốn check-in cho bệnh nhân này?')) {
       return;
     }
     
     try {
-      const appointmentApi = getAppointmentManagement();
-      await appointmentApi.updateAppointmentStatusByDoctor(id, { status: 'COMPLETED' });
-      alert('Đã đánh dấu hoàn thành!');
+      // Call check-in API endpoint
+      await api<AppointmentResponse>({
+        url: `/api/appointments/${id}/check-in`,
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      alert('Đã check-in thành công!');
       handleRefresh();
     } catch (error: any) {
-      console.error('Error marking as completed:', error);
-      const errorMessage = error?.response?.data?.message || error?.message || 'Có lỗi xảy ra khi cập nhật trạng thái.';
+      console.error('Error checking in:', error);
+      const errorMessage = error?.response?.data?.message || error?.message || 'Có lỗi xảy ra khi check-in.';
+      setErrorMessage(errorMessage);
+      alert(errorMessage);
+    }
+  };
+
+  // Start consultation (CHECKED_IN → IN_PROGRESS)
+  const handleStartConsultationClick = async (id: number | undefined) => {
+    if (!id) return;
+    
+    if (!confirm('Bắt đầu khám bệnh cho bệnh nhân này?')) {
+      return;
+    }
+    
+    try {
+      // Call start consultation API endpoint
+      await api<AppointmentResponse>({
+        url: `/api/appointments/${id}/start`,
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      alert('Đã bắt đầu khám bệnh!');
+      handleRefresh();
+    } catch (error: any) {
+      console.error('Error starting consultation:', error);
+      const errorMessage = error?.response?.data?.message || error?.message || 'Có lỗi xảy ra khi bắt đầu khám.';
+      setErrorMessage(errorMessage);
+      alert(errorMessage);
+    }
+  };
+
+  // Complete consultation (IN_PROGRESS → REVIEW)
+  const handleCompleteConsultation = async (id: number | undefined) => {
+    if (!id) return;
+    
+    if (!confirm('Bạn có chắc chắn muốn hoàn thành khám bệnh? Lịch hẹn sẽ chuyển sang trạng thái "Chờ đánh giá" và bệnh nhân có thể đánh giá bác sĩ.')) {
+      return;
+    }
+    
+    try {
+      // Call complete consultation API endpoint
+      await api<AppointmentResponse>({
+        url: `/api/appointments/${id}/complete`,
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      alert('Đã hoàn thành khám bệnh! Lịch hẹn đã chuyển sang trạng thái "Chờ đánh giá". Bệnh nhân có thể đánh giá bác sĩ.');
+      handleRefresh();
+    } catch (error: any) {
+      console.error('Error completing consultation:', error);
+      const errorMessage = error?.response?.data?.message || error?.message || 'Có lỗi xảy ra khi hoàn thành khám.';
+      setErrorMessage(errorMessage);
+      alert(errorMessage);
+    }
+  };
+
+  // Confirm appointment (PENDING → CONFIRMED) - for doctor
+  const handleConfirmAppointment = async (id: number | undefined) => {
+    if (!id) return;
+    
+    if (!confirm('Bạn có chắc chắn muốn xác nhận lịch hẹn này? Bệnh nhân sẽ nhận được thông báo xác nhận.')) {
+      return;
+    }
+    
+    try {
+      // Call confirm API endpoint
+      await api<AppointmentResponse>({
+        url: `/api/appointments/${id}/confirm`,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      alert('Đã xác nhận lịch hẹn! Bệnh nhân sẽ nhận được thông báo.');
+      handleRefresh();
+    } catch (error: any) {
+      console.error('Error confirming appointment:', error);
+      const errorMessage = error?.response?.data?.message || error?.message || 'Có lỗi xảy ra khi xác nhận lịch hẹn.';
+      setErrorMessage(errorMessage);
+      alert(errorMessage);
+    }
+  };
+
+  // Reject appointment (PENDING → REJECTED) - for doctor
+  const handleRejectAppointment = async (id: number | undefined) => {
+    if (!id) return;
+    
+    const reason = prompt('Nhập lý do từ chối (nội bộ, chỉ bác sĩ và admin thấy):\n\nBệnh nhân sẽ nhận thông báo chung: "Bác sĩ không khả dụng vào thời điểm này"');
+    if (reason === null) return; // User cancelled
+    
+    if (!confirm('Bạn có chắc chắn muốn từ chối lịch hẹn này? Slot sẽ được giải phóng và bệnh nhân sẽ nhận thông báo.')) {
+      return;
+    }
+    
+    try {
+      // Call reject API endpoint
+      await api<AppointmentResponse>({
+        url: `/api/appointments/${id}/reject`,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        data: reason ? { reason } : {}
+      });
+      alert('Đã từ chối lịch hẹn! Slot đã được giải phóng.');
+      handleRefresh();
+    } catch (error: any) {
+      console.error('Error rejecting appointment:', error);
+      const errorMessage = error?.response?.data?.message || error?.message || 'Có lỗi xảy ra khi từ chối lịch hẹn.';
+      setErrorMessage(errorMessage);
+      alert(errorMessage);
+    }
+  };
+
+  // Cancel confirmed appointment (CONFIRMED → CANCELLED_BY_DOCTOR) - for doctor
+  const handleCancelByDoctor = async (id: number | undefined) => {
+    if (!id) return;
+    
+    const reason = prompt('Nhập lý do hủy (nội bộ, chỉ bác sĩ và admin thấy):');
+    if (reason === null) return; // User cancelled
+    
+    if (!confirm('Bạn có chắc chắn muốn hủy lịch hẹn đã xác nhận? Bệnh nhân sẽ nhận được thông báo và có thể chọn slot khác.')) {
+      return;
+    }
+    
+    try {
+      // Call cancel API endpoint
+      await api<AppointmentResponse>({
+        url: `/api/appointments/${id}/cancel`,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        data: reason ? { reason } : {}
+      });
+      alert('Đã hủy lịch hẹn! Bệnh nhân sẽ nhận được thông báo.');
+      handleRefresh();
+    } catch (error: any) {
+      console.error('Error cancelling appointment:', error);
+      const errorMessage = error?.response?.data?.message || error?.message || 'Có lỗi xảy ra khi hủy lịch hẹn.';
       setErrorMessage(errorMessage);
       alert(errorMessage);
     }
@@ -257,13 +425,13 @@ export default function OutdoorCheckupPage() {
   const handleMarkAbsent = async (id: number | undefined) => {
     if (!id) return;
     
-    if (!confirm('Bạn có chắc chắn muốn đánh dấu bệnh nhân này là vắng mặt?')) {
+    if (!confirm('Bạn có chắc chắn muốn đánh dấu bệnh nhân này là vắng mặt (NO_SHOW)?')) {
       return;
     }
     
     try {
       const appointmentApi = getAppointmentManagement();
-      await appointmentApi.updateAppointmentStatusByDoctor(id, { status: 'CANCELLED' });
+      await appointmentApi.updateAppointmentStatusByDoctor(id, { status: 'NO_SHOW' });
       alert('Đã đánh dấu vắng mặt!');
       handleRefresh();
     } catch (error: any) {
@@ -447,35 +615,93 @@ export default function OutdoorCheckupPage() {
                       </td>
                       <td>
                         <div className="btn-group btn-group-sm" role="group">
-                          <button
-                            className="btn btn-primary"
-                            onClick={() => handleStartConsultation(apt)}
-                            title="Bắt đầu khám"
-                          >
-                            <i className="fa fa-play"></i>
-                          </button>
-                          <button
-                            className="btn btn-success"
-                            onClick={() => handleMarkCompleted(apt.id)}
-                            title="Hoàn thành"
-                            disabled={apt.status === 'COMPLETED' || apt.status === 'CANCELLED'}
-                          >
-                            <i className="fa fa-check"></i>
-                          </button>
-                          <button
-                            className="btn btn-warning"
-                            onClick={() => handleMarkAbsent(apt.id)}
-                            title="Vắng mặt"
-                          >
-                            <i className="fa fa-times"></i>
-                          </button>
-                          <button
-                            className="btn btn-info"
-                            onClick={() => handleRequestLab(apt.id)}
-                            title="Yêu cầu xét nghiệm"
-                          >
-                            <i className="fa fa-vial"></i>
-                          </button>
+                          {/* Confirm button - PENDING → CONFIRMED */}
+                          {apt.status === 'PENDING' && (
+                            <>
+                              <button
+                                className="btn btn-success"
+                                onClick={() => handleConfirmAppointment(apt.id)}
+                                title="Xác nhận lịch hẹn"
+                              >
+                                <i className="fa fa-check-circle"></i> Xác nhận
+                              </button>
+                              <button
+                                className="btn btn-danger"
+                                onClick={() => handleRejectAppointment(apt.id)}
+                                title="Từ chối lịch hẹn"
+                              >
+                                <i className="fa fa-times-circle"></i> Từ chối
+                              </button>
+                            </>
+                          )}
+                          {/* Cancel button - CONFIRMED → CANCELLED_BY_DOCTOR */}
+                          {apt.status === 'CONFIRMED' && (
+                            <>
+                              <button
+                                className="btn btn-primary"
+                                onClick={() => handleCheckIn(apt.id)}
+                                title="Check-in bệnh nhân"
+                              >
+                                <i className="fa fa-sign-in-alt"></i>
+                              </button>
+                              <button
+                                className="btn btn-danger"
+                                onClick={() => handleCancelByDoctor(apt.id)}
+                                title="Hủy lịch hẹn (bác sĩ)"
+                              >
+                                <i className="fa fa-ban"></i>
+                              </button>
+                            </>
+                          )}
+                          {/* Start consultation button - CHECKED_IN → IN_PROGRESS */}
+                          {apt.status === 'CHECKED_IN' && (
+                            <button
+                              className="btn btn-success"
+                              onClick={() => handleStartConsultationClick(apt.id)}
+                              title="Bắt đầu khám"
+                            >
+                              <i className="fa fa-play"></i>
+                            </button>
+                          )}
+                          {/* View/Edit button - IN_PROGRESS */}
+                          {apt.status === 'IN_PROGRESS' && (
+                            <>
+                              <button
+                                className="btn btn-primary"
+                                onClick={() => handleStartConsultation(apt)}
+                                title="Xem/Chỉnh sửa hồ sơ"
+                              >
+                                <i className="fa fa-edit"></i>
+                              </button>
+                              <button
+                                className="btn btn-success"
+                                onClick={() => handleCompleteConsultation(apt.id)}
+                                title="Hoàn thành khám (chuyển sang chờ đánh giá)"
+                              >
+                                <i className="fa fa-check"></i>
+                              </button>
+                            </>
+                          )}
+                          {/* No-show button - for PENDING, CONFIRMED, CHECKED_IN */}
+                          {(apt.status === 'PENDING' || apt.status === 'CONFIRMED' || apt.status === 'CHECKED_IN') && (
+                            <button
+                              className="btn btn-warning"
+                              onClick={() => handleMarkAbsent(apt.id)}
+                              title="Đánh dấu vắng mặt"
+                            >
+                              <i className="fa fa-user-times"></i>
+                            </button>
+                          )}
+                          {/* Request lab button - available for most statuses */}
+                          {apt.status !== 'COMPLETED' && apt.status !== 'CANCELLED' && apt.status !== 'CANCELLED_BY_DOCTOR' && apt.status !== 'CANCELLED_BY_PATIENT' && apt.status !== 'NO_SHOW' && apt.status !== 'REJECTED' && apt.status !== 'EXPIRED' && (
+                            <button
+                              className="btn btn-secondary"
+                              onClick={() => handleRequestLab(apt.id)}
+                              title="Yêu cầu xét nghiệm"
+                            >
+                              <i className="fa fa-vial"></i>
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -647,6 +873,67 @@ export default function OutdoorCheckupPage() {
                 >
                   <i className="fa fa-save me-2"></i>Lưu kết quả
                 </button>
+                {/* Show different buttons based on status */}
+                {selectedAppointment.status === 'IN_PROGRESS' && (
+                  <button 
+                    type="button" 
+                    className="btn btn-success"
+                    onClick={async () => {
+                      if (!selectedAppointment.id) return;
+                      
+                      if (!confirm('Bạn có chắc chắn muốn hoàn thành khám bệnh? Lịch hẹn sẽ chuyển sang trạng thái "Chờ đánh giá" và bệnh nhân có thể đánh giá bác sĩ.')) {
+                        return;
+                      }
+                      
+                      try {
+                        await api<AppointmentResponse>({
+                          url: `/api/appointments/${selectedAppointment.id}/complete`,
+                          method: 'PUT',
+                          headers: { 'Content-Type': 'application/json' }
+                        });
+                        alert('Đã hoàn thành khám bệnh! Lịch hẹn đã chuyển sang trạng thái "Chờ đánh giá". Bệnh nhân có thể đánh giá bác sĩ.');
+                        setSelectedAppointment(null);
+                        handleRefresh();
+                      } catch (error: any) {
+                        console.error('Error completing consultation:', error);
+                        const errorMessage = error?.response?.data?.message || error?.message || 'Có lỗi xảy ra khi hoàn thành khám.';
+                        alert(errorMessage);
+                      }
+                    }}
+                  >
+                    <i className="fa fa-check me-2"></i>Hoàn thành khám
+                  </button>
+                )}
+                {selectedAppointment.status === 'CHECKED_IN' && (
+                  <button 
+                    type="button" 
+                    className="btn btn-success"
+                    onClick={async () => {
+                      if (!selectedAppointment.id) return;
+                      
+                      if (!confirm('Bắt đầu khám bệnh cho bệnh nhân này?')) {
+                        return;
+                      }
+                      
+                      try {
+                        await api<AppointmentResponse>({
+                          url: `/api/appointments/${selectedAppointment.id}/start`,
+                          method: 'PUT',
+                          headers: { 'Content-Type': 'application/json' }
+                        });
+                        alert('Đã bắt đầu khám bệnh!');
+                        setSelectedAppointment(null);
+                        handleRefresh();
+                      } catch (error: any) {
+                        console.error('Error starting consultation:', error);
+                        const errorMessage = error?.response?.data?.message || error?.message || 'Có lỗi xảy ra khi bắt đầu khám.';
+                        alert(errorMessage);
+                      }
+                    }}
+                  >
+                    <i className="fa fa-play me-2"></i>Bắt đầu khám
+                  </button>
+                )}
               </div>
             </div>
           </div>

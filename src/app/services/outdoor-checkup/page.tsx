@@ -17,10 +17,12 @@ import axios from 'axios';
 
 export default function OutdoorCheckupPage() {
   const router = useRouter();
-  const [step, setStep] = useState<'department' | 'doctor' | 'datetime' | 'info' | 'confirm' | 'detail'>('department');
+  const [step, setStep] = useState<'clinic' | 'department' | 'doctor' | 'datetime' | 'info' | 'confirm' | 'detail'>('clinic');
   const [departments, setDepartments] = useState<any[]>([]);
+  const [clinics, setClinics] = useState<any[]>([]);
   const [doctors, setDoctors] = useState<any[]>([]);
-  const [selectedDepartment, setSelectedDepartment] = useState<string>('');
+  const [selectedClinic, setSelectedClinic] = useState<string>('');
+  const [selectedDepartment, setSelectedDepartment] = useState<string>('GENERAL_MEDICINE'); // Default to "Nội tổng quát" (Lâm sàng)
   const [selectedDoctor, setSelectedDoctor] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [selectedTime, setSelectedTime] = useState<string>('');
@@ -47,22 +49,92 @@ export default function OutdoorCheckupPage() {
   const [timeRemaining, setTimeRemaining] = useState<number>(300); // 5 minutes in seconds
   const [showTimeExpiredModal, setShowTimeExpiredModal] = useState(false);
   const [holdStartTime, setHoldStartTime] = useState<Date | null>(null);
+  const [appointmentStatus, setAppointmentStatus] = useState<string>('PENDING');
+  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
+  const [showRejectedModal, setShowRejectedModal] = useState(false);
+  const [showExpiredModal, setShowExpiredModal] = useState(false);
 
-  const loadDepartments = useCallback(async () => {
+  // Department enum values with display names and icons
+  const departmentList = [
+    { value: 'GENERAL_MEDICINE', label: 'Nội tổng quát', icon: 'fa-stethoscope', color: 'primary' },
+    { value: 'PEDIATRICS', label: 'Nhi', icon: 'fa-child', color: 'info' },
+    { value: 'OBSTETRICS_GYNECOLOGY', label: 'Sản – Phụ', icon: 'fa-female', color: 'danger' },
+    { value: 'SURGERY', label: 'Ngoại tổng quát', icon: 'fa-cut', color: 'warning' },
+    { value: 'CARDIOLOGY', label: 'Tim mạch', icon: 'fa-heartbeat', color: 'danger' },
+    { value: 'NEUROLOGY', label: 'Thần kinh', icon: 'fa-brain', color: 'primary' },
+    { value: 'ORTHOPEDICS', label: 'Chấn thương chỉnh hình', icon: 'fa-bone', color: 'secondary' },
+    { value: 'ONCOLOGY', label: 'Ung bướu', icon: 'fa-ribbon', color: 'warning' },
+    { value: 'GASTROENTEROLOGY', label: 'Tiêu hóa', icon: 'fa-stomach', color: 'success' },
+    { value: 'RESPIRATORY', label: 'Hô hấp', icon: 'fa-lungs', color: 'info' },
+    { value: 'NEPHROLOGY', label: 'Thận', icon: 'fa-kidneys', color: 'primary' },
+    { value: 'ENDOCRINOLOGY', label: 'Nội tiết', icon: 'fa-flask', color: 'success' },
+    { value: 'HEMATOLOGY', label: 'Huyết học', icon: 'fa-tint', color: 'danger' },
+    { value: 'RHEUMATOLOGY', label: 'Cơ xương khớp', icon: 'fa-dumbbell', color: 'secondary' },
+    { value: 'DERMATOLOGY', label: 'Da liễu', icon: 'fa-hand-sparkles', color: 'warning' },
+    { value: 'INFECTIOUS_DISEASE', label: 'Truyền nhiễm', icon: 'fa-virus', color: 'danger' },
+  ];
+
+  const loadClinics = useCallback(async () => {
     try {
       const clinicApi = getClinicManagement();
       const response = await clinicApi.getAllClinics();
-      setDepartments(Array.isArray(response) ? response : []);
+      setClinics(Array.isArray(response) ? response : []);
     } catch (error) {
-      console.error('Error loading departments:', error);
-      setDepartments([]);
+      console.error('Error loading clinics:', error);
+      setClinics([]);
     }
   }, []);
 
-  const loadDoctors = useCallback(async (clinicId: number) => {
+  const loadDoctors = useCallback(async (department: string, clinicId?: number) => {
     try {
       const doctorApi = getDoctorManagement();
-      const response = await doctorApi.getDoctorsByClinic(clinicId);
+      let response;
+      
+      try {
+        // Try new API endpoints first (if available after regenerating)
+        if (clinicId && (doctorApi as any).getDoctorsByClinicAndDepartment) {
+          response = await (doctorApi as any).getDoctorsByClinicAndDepartment(clinicId, department);
+        } else if ((doctorApi as any).getDoctorsByDepartment) {
+          response = await (doctorApi as any).getDoctorsByDepartment(department);
+        } else {
+          // Fallback: Load all doctors by clinic and filter by department
+          if (clinicId) {
+            response = await doctorApi.getDoctorsByClinic(clinicId);
+          } else {
+            // Load all doctors and filter client-side (not ideal but works)
+            const allDoctorsResponse = await doctorApi.getAllDoctors({ page: 0, size: 1000 });
+            response = Array.isArray(allDoctorsResponse) ? allDoctorsResponse : [];
+          }
+          
+          // Filter by department client-side
+          if (response && Array.isArray(response)) {
+            response = response.filter((doctor: any) => {
+              const doctorDept = doctor.department || doctor.specialization;
+              return doctorDept === department || 
+                     (typeof doctorDept === 'string' && doctorDept.toUpperCase() === department.toUpperCase());
+            });
+          }
+        }
+      } catch (apiError) {
+        // If new API doesn't exist, fallback to old method
+        console.warn('New API not available, using fallback:', apiError);
+        if (clinicId) {
+          response = await doctorApi.getDoctorsByClinic(clinicId);
+        } else {
+          const allDoctorsResponse = await doctorApi.getAllDoctors({ page: 0, size: 1000 });
+          response = Array.isArray(allDoctorsResponse) ? allDoctorsResponse : [];
+        }
+        
+        // Filter by department client-side
+        if (response && Array.isArray(response)) {
+          response = response.filter((doctor: any) => {
+            const doctorDept = doctor.department || doctor.specialization;
+            return doctorDept === department || 
+                   (typeof doctorDept === 'string' && doctorDept.toUpperCase() === department.toUpperCase());
+          });
+        }
+      }
+      
       setDoctors(Array.isArray(response) ? response : []);
     } catch (error) {
       console.error('Error loading doctors:', error);
@@ -85,7 +157,7 @@ export default function OutdoorCheckupPage() {
         setShowLoginModal(true);
       } else {
         // Nếu đã đăng nhập, load dữ liệu
-        loadDepartments();
+        loadClinics();
         const user = getUser();
         if (user) {
           setPatientInfo({
@@ -109,7 +181,7 @@ export default function OutdoorCheckupPage() {
         setShowLoginModal(false);
         setShowSignupModal(false);
         // Load dữ liệu sau khi đăng nhập
-        loadDepartments();
+        loadClinics();
         const user = getUser();
         if (user) {
           setPatientInfo({
@@ -130,13 +202,25 @@ export default function OutdoorCheckupPage() {
         window.removeEventListener('auth-change', handleAuthChange);
       };
     }
-  }, [loadDepartments]);
+  }, [loadClinics]);
 
   useEffect(() => {
-    if (selectedDepartment) {
-      loadDoctors(Number(selectedDepartment));
+    // Auto-load doctors when both clinic and department are selected
+    if (selectedClinic && selectedDepartment) {
+      loadDoctors(selectedDepartment, Number(selectedClinic));
+    } else if (selectedDepartment && step === 'doctor') {
+      // If no clinic selected but in doctor step, load all doctors for department
+      loadDoctors(selectedDepartment);
     }
-  }, [selectedDepartment, loadDoctors]);
+  }, [selectedDepartment, selectedClinic, step, loadDoctors]);
+
+  // Auto-load doctors when entering department step with clinic and default department
+  useEffect(() => {
+    if (step === 'department' && selectedClinic && selectedDepartment === 'GENERAL_MEDICINE') {
+      // Auto-load doctors for default department when clinic is selected
+      loadDoctors(selectedDepartment, Number(selectedClinic));
+    }
+  }, [step, selectedClinic, selectedDepartment, loadDoctors]);
 
   // Load busy schedules when doctor is selected
   useEffect(() => {
@@ -262,13 +346,31 @@ export default function OutdoorCheckupPage() {
     }
   }, []);
 
-  const handleDepartmentSelect = (deptId: string) => {
-    setSelectedDepartment(deptId);
+  const handleClinicSelect = (clinicId: string) => {
+    setSelectedClinic(clinicId);
+    setStep('department');
+    // Clear selections when changing clinic
+    setSelectedDoctor('');
+    setSelectedDate('');
+    setSelectedTime('');
+    setHoldAppointmentId(null);
+    // Keep default department (GENERAL_MEDICINE) - already selected by default
+    // Auto-load doctors when clinic is selected and department is already set
+    if (selectedDepartment) {
+      setTimeout(() => {
+        loadDoctors(selectedDepartment, Number(clinicId));
+      }, 100);
+    }
+  };
+
+  const handleDepartmentSelect = (deptValue: string) => {
+    setSelectedDepartment(deptValue);
     setStep('doctor');
     // Clear hold when changing department
     setHoldAppointmentId(null);
     setSelectedDate('');
     setSelectedTime('');
+    setSelectedDoctor('');
   };
 
   const handleDoctorSelect = (doctorId: string) => {
@@ -380,12 +482,18 @@ export default function OutdoorCheckupPage() {
       
       if (appointment && appointment.id) {
         setAppointmentId(appointment.id.toString());
+        setAppointmentStatus(appointment.status || 'PENDING');
         setHoldAppointmentId(null); // Clear hold appointment ID
         setStep('detail');
         setErrorMessage(''); // Clear any previous errors
         
         // Reload busy schedules to update display
         await loadBusySchedules(Number(selectedDoctor));
+        
+        // Start checking appointment status if still PENDING
+        if (appointment.status === 'PENDING') {
+          startStatusPolling(appointment.id);
+        }
       } else {
         throw new Error('Failed to confirm appointment: No appointment ID returned');
       }
@@ -447,6 +555,86 @@ export default function OutdoorCheckupPage() {
   const getHours = (): number[] => {
     return Array.from({ length: 10 }, (_, i) => i + 8); // 8-17
   };
+
+  // Poll appointment status to check if it's been confirmed, rejected, or expired
+  const startStatusPolling = useCallback((appointmentId: number) => {
+    const pollInterval = setInterval(async () => {
+      try {
+        const appointmentApi = getAppointmentManagement();
+        const response = await appointmentApi.getMyAppointments();
+        const appointments = Array.isArray(response) ? response : [];
+        const currentAppointment = appointments.find((apt: any) => apt.id === appointmentId);
+        
+        if (currentAppointment) {
+          const status = currentAppointment.status;
+          setAppointmentStatus(status);
+          
+          // Stop polling if appointment is no longer PENDING
+          if (status !== 'PENDING') {
+            clearInterval(pollInterval);
+            setIsCheckingStatus(false);
+            
+            // Show appropriate modal based on status
+            if (status === 'REJECTED') {
+              setShowRejectedModal(true);
+            } else if (status === 'EXPIRED') {
+              setShowExpiredModal(true);
+            } else if (status === 'CONFIRMED') {
+              // Appointment confirmed - no action needed, just update display
+            }
+          }
+        } else {
+          // Appointment not found - might have been deleted
+          clearInterval(pollInterval);
+          setIsCheckingStatus(false);
+        }
+      } catch (error) {
+        console.error('Error polling appointment status:', error);
+        // Continue polling on error
+      }
+    }, 10000); // Check every 10 seconds
+    
+    // Stop polling after 2 hours (timeout period)
+    setTimeout(() => {
+      clearInterval(pollInterval);
+      setIsCheckingStatus(false);
+    }, 2 * 60 * 60 * 1000); // 2 hours
+    
+    setIsCheckingStatus(true);
+  }, []);
+
+  // Check appointment status when entering detail step
+  useEffect(() => {
+    if (step === 'detail' && appointmentId) {
+      const checkStatus = async () => {
+        try {
+          const appointmentApi = getAppointmentManagement();
+          const response = await appointmentApi.getMyAppointments();
+          const appointments = Array.isArray(response) ? response : [];
+          const currentAppointment = appointments.find((apt: any) => apt.id?.toString() === appointmentId);
+          
+          if (currentAppointment) {
+            const status = currentAppointment.status;
+            setAppointmentStatus(status);
+            
+            // Show appropriate modal if rejected or expired
+            if (status === 'REJECTED') {
+              setShowRejectedModal(true);
+            } else if (status === 'EXPIRED') {
+              setShowExpiredModal(true);
+            } else if (status === 'PENDING') {
+              // Start polling if still pending
+              startStatusPolling(Number(appointmentId));
+            }
+          }
+        } catch (error) {
+          console.error('Error checking appointment status:', error);
+        }
+      };
+      
+      checkStatus();
+    }
+  }, [step, appointmentId, startStatusPolling]);
 
   // Get busy schedule info for a specific slot
   // Exclude HOLD slots that belong to the current user (holdAppointmentId) if user has selected a different slot
@@ -610,9 +798,28 @@ export default function OutdoorCheckupPage() {
       // Always use exact time (without adding 1 second) since we're cancelling the old hold first
       const appointmentTime = `${selectedDate}T${selectedTime}:00`;
 
+      // Get selected doctor to extract clinicId
+      const selectedDoctorObj = doctors.find(d => d.id?.toString() === selectedDoctor);
+      if (!selectedDoctorObj) {
+        setErrorMessage('Không tìm thấy thông tin bác sĩ. Vui lòng chọn lại.');
+        setIsHoldingSlot(false);
+        return;
+      }
+
+      // Extract clinicId from doctor object (could be clinic.id or clinicId)
+      const clinicId = selectedDoctorObj.clinic?.id || 
+                      selectedDoctorObj.clinicId || 
+                      (selectedClinic ? Number(selectedClinic) : null);
+      
+      if (!clinicId) {
+        setErrorMessage('Không tìm thấy thông tin cơ sở. Vui lòng chọn lại.');
+        setIsHoldingSlot(false);
+        return;
+      }
+
       const createRequest = {
         doctorId: Number(selectedDoctor),
-        clinicId: Number(selectedDepartment),
+        clinicId: clinicId,
         appointmentTime: appointmentTime,
         durationMinutes: 60,
       };
@@ -783,24 +990,64 @@ export default function OutdoorCheckupPage() {
           <div className="row justify-content-center">
             <div className="col-lg-10">
               {/* Progress Steps */}
-              <div className="card shadow-sm mb-4">
-                <div className="card-body">
+              <div className="card shadow-sm mb-4 border-0">
+                <div className="card-body py-4">
                   <div className="d-flex justify-content-between align-items-center">
-                    {['Department', 'Doctor', 'Date & Time', 'Patient Info', 'Confirm'].map((label, index) => {
-                      const steps = ['department', 'doctor', 'datetime', 'info', 'confirm'];
+                    {[
+                      { label: 'Bệnh viện', step: 'clinic' },
+                      { label: 'Chuyên khoa', step: 'department' },
+                      { label: 'Bác sĩ', step: 'doctor' },
+                      { label: 'Ngày giờ', step: 'datetime' },
+                      { label: 'Thông tin', step: 'info' },
+                      { label: 'Xác nhận', step: 'confirm' }
+                    ].map((item, index) => {
+                      const steps = ['clinic', 'department', 'doctor', 'datetime', 'info', 'confirm'];
                       const currentStepIndex = steps.indexOf(step);
                       const isActive = index <= currentStepIndex;
+                      const isCurrent = index === currentStepIndex;
                       return (
-                        <div key={label} className="text-center flex-fill">
-                          <div
-                            className={`rounded-circle d-inline-flex align-items-center justify-content-center ${
-                              isActive ? 'bg-primary text-white' : 'bg-secondary text-white'
-                            }`}
-                            style={{ width: '40px', height: '40px' }}
-                          >
-                            {index + 1}
+                        <div key={item.step} className="text-center flex-fill position-relative">
+                          {/* Connector line */}
+                          {index < 5 && (
+                            <div 
+                              className={`position-absolute top-0 start-50 translate-middle-x ${
+                                isActive ? 'bg-primary' : 'bg-light'
+                              }`}
+                              style={{ 
+                                width: '100%', 
+                                height: '3px', 
+                                zIndex: 0,
+                                marginTop: '18px',
+                                marginLeft: '50%'
+                              }}
+                            />
+                          )}
+                          <div className="position-relative" style={{ zIndex: 1 }}>
+                            <div
+                              className={`rounded-circle d-inline-flex align-items-center justify-content-center ${
+                                isCurrent 
+                                  ? 'bg-primary text-white shadow-lg' 
+                                  : isActive 
+                                    ? 'bg-success text-white' 
+                                    : 'bg-light text-muted'
+                              }`}
+                              style={{ 
+                                width: '45px', 
+                                height: '45px',
+                                transition: 'all 0.3s ease',
+                                border: isCurrent ? '3px solid #0d6efd' : 'none'
+                              }}
+                            >
+                              {isActive && !isCurrent ? (
+                                <i className="fa fa-check"></i>
+                              ) : (
+                                index + 1
+                              )}
+                            </div>
+                            <div className={`mt-2 small fw-medium ${isActive ? 'text-primary' : 'text-muted'}`}>
+                              {item.label}
+                            </div>
                           </div>
-                          <div className="mt-2 small">{label}</div>
                         </div>
                       );
                     })}
@@ -808,62 +1055,261 @@ export default function OutdoorCheckupPage() {
                 </div>
               </div>
 
-              {/* Step 1: Select Department */}
-              {step === 'department' && (
-                <div className="card shadow">
-                  <div className="card-header bg-primary text-white">
-                    <h3 className="mb-0">1️⃣ Select Department</h3>
+              {/* Step 1: Select Clinic */}
+              {step === 'clinic' && (
+                <div className="card shadow-lg border-0">
+                  <div className="card-header bg-gradient-primary text-white py-4" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                    <h3 className="mb-0">
+                      <i className="fa fa-hospital-o me-2"></i>
+                      Chọn Bệnh Viện / Cơ Sở
+                    </h3>
+                    <small className="text-white-50">Vui lòng chọn nơi bạn muốn khám bệnh</small>
                   </div>
-                  <div className="card-body">
-                    <div className="row g-3">
-                      {departments.map((dept) => (
-                        <div key={dept.id} className="col-md-6">
-                          <button
-                            className="btn btn-outline-primary w-100 p-4 text-start"
-                            onClick={() => handleDepartmentSelect(dept.id.toString())}
-                          >
-                            <h5>{dept.name}</h5>
-                            <small className="text-muted">{dept.address}</small>
-                          </button>
+                  <div className="card-body p-4">
+                    {clinics.length === 0 ? (
+                      <div className="text-center py-5">
+                        <div className="spinner-border text-primary mb-3" role="status">
+                          <span className="visually-hidden">Loading...</span>
                         </div>
-                      ))}
+                        <p className="text-muted">Đang tải danh sách cơ sở...</p>
+                      </div>
+                    ) : (
+                      <div className="row g-4">
+                        {clinics.map((clinic) => (
+                          <div key={clinic.id} className="col-md-6 col-lg-4">
+                            <button
+                              className={`btn w-100 p-4 text-start h-100 border-2 ${
+                                selectedClinic === clinic.id?.toString()
+                                  ? 'btn-primary border-primary shadow'
+                                  : 'btn-outline-primary border-light'
+                              }`}
+                              onClick={() => handleClinicSelect(clinic.id.toString())}
+                              style={{
+                                transition: 'all 0.3s ease',
+                                borderRadius: '12px'
+                              }}
+                            >
+                              <div className="d-flex align-items-center mb-3">
+                                <i className={`fa fa-hospital-o fa-2x me-3 ${
+                                  selectedClinic === clinic.id?.toString() ? 'text-white' : 'text-primary'
+                                }`}></i>
+                                <h5 className={`mb-0 ${selectedClinic === clinic.id?.toString() ? 'text-white' : ''}`}>
+                                  {clinic.name}
+                                </h5>
+                              </div>
+                              {clinic.address && (
+                                <p className={`small mb-2 ${selectedClinic === clinic.id?.toString() ? 'text-white-50' : 'text-muted'}`}>
+                                  <i className="fa fa-map-marker me-1"></i>
+                                  {clinic.address}
+                                </p>
+                              )}
+                              {clinic.phone && (
+                                <p className={`small mb-0 ${selectedClinic === clinic.id?.toString() ? 'text-white-50' : 'text-muted'}`}>
+                                  <i className="fa fa-phone me-1"></i>
+                                  {clinic.phone}
+                                </p>
+                              )}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Step 2: Select Department */}
+              {step === 'department' && (
+                <div className="card shadow-lg border-0">
+                  <div className="card-header bg-gradient-success text-white py-4" style={{ background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)' }}>
+                    <h3 className="mb-0">
+                      <i className="fa fa-stethoscope me-2"></i>
+                      Chọn Chuyên Khoa
+                    </h3>
+                    <small className="text-white-50">
+                      {clinics.find(c => c.id?.toString() === selectedClinic)?.name || 'Tất cả cơ sở'}
+                    </small>
+                  </div>
+                  <div className="card-body p-4">
+                    <button
+                      className="btn btn-outline-secondary mb-4"
+                      onClick={() => {
+                        setStep('clinic');
+                        setSelectedClinic('');
+                        setSelectedDepartment('GENERAL_MEDICINE');
+                        setSelectedDoctor('');
+                        setDoctors([]);
+                      }}
+                    >
+                      <i className="fa fa-arrow-left me-2"></i>Quay lại
+                    </button>
+                    <div className="row g-3">
+                      {departmentList.map((dept) => {
+                        const isSelected = selectedDepartment === dept.value;
+                        return (
+                          <div key={dept.value} className="col-md-6 col-lg-4">
+                            <button
+                              className={`btn w-100 p-4 text-start h-100 border-2 ${
+                                isSelected
+                                  ? `btn-${dept.color} border-${dept.color} shadow`
+                                  : 'btn-outline-light border-light'
+                              }`}
+                              onClick={() => handleDepartmentSelect(dept.value)}
+                              style={{
+                                transition: 'all 0.3s ease',
+                                borderRadius: '12px',
+                                backgroundColor: isSelected ? undefined : 'white'
+                              }}
+                            >
+                              <div className="d-flex align-items-center mb-2">
+                                <i className={`fa ${dept.icon} fa-2x me-3 ${
+                                  isSelected ? 'text-white' : `text-${dept.color}`
+                                }`}></i>
+                                <h5 className={`mb-0 ${isSelected ? 'text-white' : ''}`}>
+                                  {dept.label}
+                                </h5>
+                              </div>
+                              {isSelected && (
+                                <small className="text-white-50">
+                                  <i className="fa fa-check-circle me-1"></i>
+                                  Đã chọn
+                                </small>
+                              )}
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Step 2: Select Doctor */}
+              {/* Step 3: Select Doctor */}
               {step === 'doctor' && (
-                <div className="card shadow">
-                  <div className="card-header bg-primary text-white">
-                    <h3 className="mb-0">2️⃣ Select Doctor</h3>
+                <div className="card shadow-lg border-0">
+                  <div className="card-header bg-gradient-info text-white py-4" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                    <h3 className="mb-0">
+                      <i className="fa fa-user-md me-2"></i>
+                      Chọn Bác Sĩ
+                    </h3>
+                    <small className="text-white-50">
+                      {departmentList.find(d => d.value === selectedDepartment)?.label}
+                      {selectedClinic && ` - ${clinics.find(c => c.id?.toString() === selectedClinic)?.name}`}
+                    </small>
                   </div>
-                  <div className="card-body">
+                  <div className="card-body p-4">
                     <button
-                      className="btn btn-outline-secondary mb-3"
-                      onClick={() => setStep('department')}
+                      className="btn btn-outline-secondary mb-4"
+                      onClick={() => {
+                        setStep('department');
+                        setSelectedDoctor('');
+                        setDoctors([]);
+                      }}
                     >
-                      <i className="fa fa-arrow-left me-2"></i>Back
+                      <i className="fa fa-arrow-left me-2"></i>Quay lại
                     </button>
-                    <div className="row g-3">
-                      {doctors.map((doctor) => (
-                        <div key={doctor.id} className="col-md-6">
-                          <div className="card">
-                            <div className="card-body">
-                              <h5>{doctor.user?.fullName || 'Doctor'}</h5>
-                              <p className="text-muted mb-2">{doctor.specialization}</p>
-                              <p className="small mb-0">Experience: {doctor.experienceYears} years</p>
-                              <button
-                                className="btn btn-primary mt-3 w-100"
-                                onClick={() => handleDoctorSelect(doctor.id.toString())}
-                              >
-                                Select
-                              </button>
-                            </div>
+
+                    {doctors.length === 0 ? (
+                      <div className="alert alert-info border-0 shadow-sm">
+                        <div className="d-flex align-items-center mb-3">
+                          <i className="fa fa-info-circle fa-2x me-3 text-info"></i>
+                          <div>
+                            <h5 className="mb-1">Không tìm thấy bác sĩ</h5>
+                            <p className="mb-0 text-muted">
+                              {selectedClinic 
+                                ? 'Không có bác sĩ nào trong chuyên khoa này tại cơ sở đã chọn.'
+                                : 'Không có bác sĩ nào trong chuyên khoa này.'}
+                            </p>
                           </div>
                         </div>
-                      ))}
-                    </div>
+                        <div className="d-flex gap-2 flex-wrap">
+                          <button
+                            className="btn btn-outline-primary"
+                            onClick={() => setStep('department')}
+                          >
+                            <i className="fa fa-arrow-left me-2"></i>
+                            Chọn chuyên khoa khác
+                          </button>
+                          {selectedClinic && (
+                            <button
+                              className="btn btn-outline-secondary"
+                              onClick={() => {
+                                setSelectedClinic('');
+                                setSelectedDoctor('');
+                              }}
+                            >
+                              Xem tất cả cơ sở
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="row g-4">
+                        {doctors.map((doctor) => {
+                          const isSelected = selectedDoctor === doctor.id?.toString();
+                          return (
+                            <div key={doctor.id} className="col-md-6 col-lg-4">
+                              <div 
+                                className={`card h-100 border-2 ${
+                                  isSelected ? 'border-primary shadow-lg' : 'border-light shadow-sm'
+                                }`}
+                                style={{
+                                  transition: 'all 0.3s ease',
+                                  borderRadius: '12px',
+                                  cursor: 'pointer'
+                                }}
+                                onClick={() => handleDoctorSelect(doctor.id.toString())}
+                              >
+                                <div className="card-body p-4">
+                                  <div className="d-flex align-items-start mb-3">
+                                    <div className={`rounded-circle bg-${isSelected ? 'primary' : 'light'} text-${isSelected ? 'white' : 'primary'} d-flex align-items-center justify-content-center`}
+                                      style={{ width: '60px', height: '60px', minWidth: '60px' }}>
+                                      <i className="fa fa-user-md fa-2x"></i>
+                                    </div>
+                                    <div className="ms-3 flex-grow-1">
+                                      <h5 className="mb-1">{doctor.user?.fullName || 'Bác sĩ'}</h5>
+                                      <p className="text-muted small mb-2">
+                                        <i className={`fa fa-stethoscope me-1 text-${isSelected ? 'white-50' : 'muted'}`}></i>
+                                        {doctor.departmentDisplayName || doctor.department || doctor.specialization}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  {doctor.clinic && (
+                                    <p className="small text-muted mb-2">
+                                      <i className="fa fa-hospital-o me-1"></i>
+                                      {doctor.clinic.name || doctor.clinicName}
+                                    </p>
+                                  )}
+                                  {doctor.experienceYears && (
+                                    <p className="small mb-3">
+                                      <i className="fa fa-calendar me-1"></i>
+                                      Kinh nghiệm: <strong>{doctor.experienceYears} năm</strong>
+                                    </p>
+                                  )}
+                                  <button
+                                    className={`btn w-100 ${isSelected ? 'btn-primary' : 'btn-outline-primary'}`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDoctorSelect(doctor.id.toString());
+                                    }}
+                                  >
+                                    {isSelected ? (
+                                      <>
+                                        <i className="fa fa-check me-2"></i>Đã chọn
+                                      </>
+                                    ) : (
+                                      <>
+                                        <i className="fa fa-arrow-right me-2"></i>Chọn bác sĩ này
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -1518,9 +1964,9 @@ export default function OutdoorCheckupPage() {
                   </div>
                   <div className="card-body">
                     <div className="alert alert-info">
-                      <h5>Appointment Summary</h5>
-                      <p><strong>Department:</strong> {departments.find(d => d.id.toString() === selectedDepartment)?.name}</p>
-                      <p><strong>Doctor:</strong> {doctors.find(d => d.id.toString() === selectedDoctor)?.user?.fullName}</p>
+                      <h5>Thông tin lịch hẹn</h5>
+                      <p><strong>Chuyên khoa:</strong> {departmentList.find(d => d.value === selectedDepartment)?.label}</p>
+                      <p><strong>Bác sĩ:</strong> {doctors.find(d => d.id?.toString() === selectedDoctor)?.user?.fullName}</p>
                       <p><strong>Date:</strong> {(() => {
                         const [year, month, day] = selectedDate.split('-').map(Number);
                         return new Date(year, month - 1, day).toLocaleDateString('vi-VN');
@@ -1569,21 +2015,220 @@ export default function OutdoorCheckupPage() {
               {/* Step 6: Appointment Detail */}
               {step === 'detail' && (
                 <div className="card shadow">
-                  <div className="card-header bg-success text-white">
-                    <h3 className="mb-0">✅ Appointment Confirmed</h3>
+                  <div className={`card-header text-white ${
+                    appointmentStatus === 'CONFIRMED' ? 'bg-success' :
+                    appointmentStatus === 'PENDING' ? 'bg-warning' :
+                    appointmentStatus === 'REJECTED' || appointmentStatus === 'EXPIRED' ? 'bg-danger' :
+                    'bg-info'
+                  }`}>
+                    <h3 className="mb-0">
+                      {appointmentStatus === 'CONFIRMED' && '✅ Lịch hẹn đã được xác nhận'}
+                      {appointmentStatus === 'PENDING' && '⏳ Đang chờ bác sĩ xác nhận'}
+                      {appointmentStatus === 'REJECTED' && '❌ Lịch hẹn đã bị từ chối'}
+                      {appointmentStatus === 'EXPIRED' && '⏰ Lịch hẹn đã hết hạn'}
+                      {!['CONFIRMED', 'PENDING', 'REJECTED', 'EXPIRED'].includes(appointmentStatus) && '📅 Thông tin lịch hẹn'}
+                    </h3>
                   </div>
                   <div className="card-body">
-                    <div className="alert alert-success">
-                      <h5>Appointment ID: {appointmentId}</h5>
-                      <p>Your appointment has been successfully booked!</p>
+                    {appointmentStatus === 'CONFIRMED' && (
+                      <div className="alert alert-success">
+                        <h5><i className="fa fa-check-circle me-2"></i>Mã lịch hẹn: {appointmentId}</h5>
+                        <p className="mb-0">Lịch hẹn của bạn đã được bác sĩ xác nhận thành công!</p>
+                        <p className="mt-2 mb-0"><strong>Vui lòng đến đúng giờ hẹn.</strong></p>
+                      </div>
+                    )}
+                    
+                    {appointmentStatus === 'PENDING' && (
+                      <div className="alert alert-warning">
+                        <h5><i className="fa fa-clock me-2"></i>Mã lịch hẹn: {appointmentId}</h5>
+                        <p className="mb-2">Lịch hẹn của bạn đang chờ bác sĩ xác nhận.</p>
+                        <p className="mb-0">
+                          <small>
+                            <i className="fa fa-info-circle me-1"></i>
+                            Hệ thống sẽ tự động thông báo khi bác sĩ xác nhận hoặc từ chối lịch hẹn.
+                            {isCheckingStatus && (
+                              <span className="ms-2">
+                                <span className="spinner-border spinner-border-sm me-1" role="status"></span>
+                                Đang kiểm tra trạng thái...
+                              </span>
+                            )}
+                          </small>
+                        </p>
+                      </div>
+                    )}
+                    
+                    {appointmentStatus === 'REJECTED' && (
+                      <div className="alert alert-danger">
+                        <h5><i className="fa fa-times-circle me-2"></i>Mã lịch hẹn: {appointmentId}</h5>
+                        <p className="mb-2">Rất tiếc, lịch hẹn của bạn đã bị từ chối.</p>
+                        <p className="mb-0">
+                          <strong>Lý do:</strong> Bác sĩ không khả dụng vào thời điểm này. Vui lòng chọn lịch khác hoặc bác sĩ khác.
+                        </p>
+                      </div>
+                    )}
+                    
+                    {appointmentStatus === 'EXPIRED' && (
+                      <div className="alert alert-danger">
+                        <h5><i className="fa fa-clock me-2"></i>Mã lịch hẹn: {appointmentId}</h5>
+                        <p className="mb-2">Lịch hẹn của bạn đã hết hạn.</p>
+                        <p className="mb-0">
+                          <strong>Lý do:</strong> Bác sĩ không phản hồi trong thời gian quy định. Vui lòng chọn lịch khác hoặc bác sĩ khác.
+                        </p>
+                      </div>
+                    )}
+                    
+                    <div className="mt-3">
+                      <h6>Thông tin lịch hẹn:</h6>
+                      <ul className="list-unstyled">
+                        <li><strong>Chuyên khoa:</strong> {departmentList.find(d => d.value === selectedDepartment)?.label}</li>
+                        <li><strong>Bác sĩ:</strong> {doctors.find(d => d.id?.toString() === selectedDoctor)?.user?.fullName}</li>
+                        <li><strong>Ngày:</strong> {(() => {
+                          const [year, month, day] = selectedDate.split('-').map(Number);
+                          return new Date(year, month - 1, day).toLocaleDateString('vi-VN');
+                        })()}</li>
+                        <li><strong>Giờ:</strong> {selectedTime}</li>
+                        <li><strong>Bệnh nhân:</strong> {patientInfo.name}</li>
+                      </ul>
                     </div>
-                    <div className="mt-4">
+                    
+                    <div className="mt-4 d-grid gap-2">
+                      {(appointmentStatus === 'REJECTED' || appointmentStatus === 'EXPIRED') && (
+                        <button
+                          className="btn btn-primary"
+                          onClick={() => {
+                            // Reset and go back to department selection
+                            setStep('department');
+                            setSelectedDepartment('');
+                            setSelectedDoctor('');
+                            setSelectedDate('');
+                            setSelectedTime('');
+                            setAppointmentId('');
+                            setAppointmentStatus('PENDING');
+                            setShowRejectedModal(false);
+                            setShowExpiredModal(false);
+                          }}
+                        >
+                          <i className="fa fa-calendar me-2"></i>
+                          Đặt lịch mới
+                        </button>
+                      )}
                       <button
-                        className="btn btn-primary w-100"
+                        className="btn btn-outline-primary"
                         onClick={() => router.push('/dashboard')}
                       >
-                        Go to Dashboard
+                        <i className="fa fa-home me-2"></i>
+                        Về Dashboard
                       </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Rejected Modal */}
+              {showRejectedModal && (
+                <div 
+                  className="modal show d-block" 
+                  style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}
+                  tabIndex={-1}
+                  onClick={(e) => {
+                    if (e.target === e.currentTarget) {
+                      setShowRejectedModal(false);
+                    }
+                  }}
+                >
+                  <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
+                    <div className="modal-content">
+                      <div className="modal-header bg-danger text-white">
+                        <h5 className="modal-title">
+                          <i className="fa fa-times-circle me-2"></i>
+                          Lịch hẹn đã bị từ chối
+                        </h5>
+                        <button
+                          type="button"
+                          className="btn-close btn-close-white"
+                          onClick={() => setShowRejectedModal(false)}
+                        ></button>
+                      </div>
+                      <div className="modal-body text-center">
+                        <i className="fa fa-exclamation-triangle fa-4x text-danger mb-3"></i>
+                        <h5>Lịch hẹn của bạn đã bị từ chối</h5>
+                        <p className="text-muted">
+                          Bác sĩ không khả dụng vào thời điểm này. Vui lòng chọn lịch khác hoặc bác sĩ khác.
+                        </p>
+                      </div>
+                      <div className="modal-footer">
+                        <button
+                          className="btn btn-primary w-100"
+                          onClick={() => {
+                            setShowRejectedModal(false);
+                            setStep('department');
+                            setSelectedDepartment('');
+                            setSelectedDoctor('');
+                            setSelectedDate('');
+                            setSelectedTime('');
+                            setAppointmentId('');
+                            setAppointmentStatus('PENDING');
+                          }}
+                        >
+                          <i className="fa fa-calendar me-2"></i>
+                          Đặt lịch mới
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Expired Modal */}
+              {showExpiredModal && (
+                <div 
+                  className="modal show d-block" 
+                  style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}
+                  tabIndex={-1}
+                  onClick={(e) => {
+                    if (e.target === e.currentTarget) {
+                      setShowExpiredModal(false);
+                    }
+                  }}
+                >
+                  <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
+                    <div className="modal-content">
+                      <div className="modal-header bg-warning text-dark">
+                        <h5 className="modal-title">
+                          <i className="fa fa-clock me-2"></i>
+                          Lịch hẹn đã hết hạn
+                        </h5>
+                        <button
+                          type="button"
+                          className="btn-close"
+                          onClick={() => setShowExpiredModal(false)}
+                        ></button>
+                      </div>
+                      <div className="modal-body text-center">
+                        <i className="fa fa-hourglass-end fa-4x text-warning mb-3"></i>
+                        <h5>Lịch hẹn của bạn đã hết hạn</h5>
+                        <p className="text-muted">
+                          Bác sĩ không phản hồi trong thời gian quy định (2 giờ). Vui lòng chọn lịch khác hoặc bác sĩ khác.
+                        </p>
+                      </div>
+                      <div className="modal-footer">
+                        <button
+                          className="btn btn-primary w-100"
+                          onClick={() => {
+                            setShowExpiredModal(false);
+                            setStep('department');
+                            setSelectedDepartment('');
+                            setSelectedDoctor('');
+                            setSelectedDate('');
+                            setSelectedTime('');
+                            setAppointmentId('');
+                            setAppointmentStatus('PENDING');
+                          }}
+                        >
+                          <i className="fa fa-calendar me-2"></i>
+                          Đặt lịch mới
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>

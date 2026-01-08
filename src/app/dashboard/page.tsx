@@ -36,6 +36,10 @@ export default function UserDashboard() {
   const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '' });
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [appointmentReviews, setAppointmentReviews] = useState<Map<number, boolean>>(new Map());
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [selectedAppointmentForCancel, setSelectedAppointmentForCancel] = useState<any>(null);
+  const [cancelReason, setCancelReason] = useState<string>('');
+  const [isCancelling, setIsCancelling] = useState(false);
 
   const loadDashboardData = useCallback(async () => {
     if (!isAuthenticated()) {
@@ -67,10 +71,14 @@ export default function UserDashboard() {
       // Process appointments
       if (appointmentsData.status === 'fulfilled') {
         const apts = (appointmentsData.value as any)?.data || appointmentsData.value || [];
-        setAppointments(Array.isArray(apts) ? apts : []);
+        // Filter out HOLD status appointments (these are temporary holds, not actual appointments)
+        const filteredApts = Array.isArray(apts) 
+          ? apts.filter((apt: any) => apt.status?.toUpperCase() !== 'HOLD')
+          : [];
+        setAppointments(filteredApts);
         
         // Check which appointments have reviews
-        checkAppointmentReviews(Array.isArray(apts) ? apts : []);
+        checkAppointmentReviews(filteredApts);
       }
 
       // Process emergencies
@@ -202,16 +210,84 @@ export default function UserDashboard() {
     }
   };
 
+  const canCancelAppointment = (appointment: any): boolean => {
+    const status = appointment.status?.toUpperCase();
+    // Có thể hủy nếu là PENDING hoặc CONFIRMED
+    return status === 'PENDING' || status === 'CONFIRMED';
+  };
+
+  const handleCancelClick = (appointment: any) => {
+    setSelectedAppointmentForCancel(appointment);
+    setCancelReason('');
+    setShowCancelModal(true);
+  };
+
+  const handleSubmitCancel = async () => {
+    if (!selectedAppointmentForCancel || !selectedAppointmentForCancel.id) {
+      alert('Không tìm thấy thông tin lịch hẹn.');
+      return;
+    }
+
+    try {
+      setIsCancelling(true);
+      const appointmentApi = getAppointmentManagement();
+      await appointmentApi.updateAppointmentStatus(selectedAppointmentForCancel.id, {
+        status: 'CANCELLED',
+        reason: cancelReason.trim() || undefined
+      });
+
+      alert('Đã hủy lịch hẹn thành công. Bác sĩ sẽ được thông báo về lý do hủy của bạn.');
+      setShowCancelModal(false);
+      setSelectedAppointmentForCancel(null);
+      setCancelReason('');
+      
+      // Reload dashboard data
+      await loadDashboardData();
+    } catch (error: any) {
+      console.error('Error cancelling appointment:', error);
+      const errorMsg = error?.response?.data?.message || error?.message || 'Có lỗi xảy ra khi hủy lịch hẹn.';
+      alert(errorMsg);
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
   return (
     <RequireAuth>
       <Topbar />
       <Navbar />
 
-      <div className="container-fluid py-5">
+      <div className="container-fluid py-5" style={{ background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)', minHeight: '100vh' }}>
         <div className="container">
-          <div className="mb-4">
-            <h2 className="mb-2">My Health Dashboard</h2>
-            <p className="text-muted">Welcome back, {user?.fullName || 'User'}!</p>
+          {/* Welcome Header */}
+          <div className="mb-5">
+            <div className="card shadow-lg border-0" style={{ 
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              borderRadius: '20px',
+              overflow: 'hidden'
+            }}>
+              <div className="card-body p-4 p-md-5 text-white">
+                <div className="row align-items-center">
+                  <div className="col-md-8">
+                    <h1 className="display-5 fw-bold mb-3">
+                      <i className="fa fa-heartbeat me-3"></i>
+                      Chào mừng trở lại!
+                    </h1>
+                    <p className="lead mb-0" style={{ opacity: 0.95 }}>
+                      Xin chào, <strong>{user?.fullName || 'Người dùng'}</strong>! 👋
+                    </p>
+                    <p className="mb-0 mt-2" style={{ opacity: 0.85 }}>
+                      Đây là tổng quan về sức khỏe và dịch vụ y tế của bạn
+                    </p>
+                  </div>
+                  <div className="col-md-4 text-center mt-4 mt-md-0">
+                    <div style={{ fontSize: '5rem', opacity: 0.3 }}>
+                      <i className="fa fa-user-md"></i>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           {error && (
@@ -231,40 +307,115 @@ export default function UserDashboard() {
           ) : (
             <>
               {/* Quick Stats */}
-              <div className="row g-4 mb-4">
-                <div className="col-md-3">
-                  <div className="card shadow-sm border-primary">
-                    <div className="card-body text-center">
-                      <i className="fa fa-calendar-check fa-2x text-primary mb-3"></i>
-                      <h3>{appointments.filter(apt => apt.status === 'CONFIRMED' || apt.status === 'PENDING').length}</h3>
-                      <p className="text-muted mb-0">Upcoming Appointments</p>
+              <div className="row g-4 mb-5">
+                <div className="col-md-3 col-sm-6">
+                  <div 
+                    className="card shadow-lg border-0 h-100"
+                    style={{
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      borderRadius: '15px',
+                      transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+                      cursor: 'pointer'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-5px)';
+                      e.currentTarget.style.boxShadow = '0 10px 30px rgba(102, 126, 234, 0.4)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 5px 15px rgba(0,0,0,0.1)';
+                    }}
+                  >
+                    <div className="card-body text-center text-white p-4">
+                      <div className="mb-3" style={{ fontSize: '3rem', opacity: 0.9 }}>
+                        <i className="fa fa-calendar-check"></i>
+                      </div>
+                      <h2 className="fw-bold mb-2">{appointments.filter(apt => {
+                        const status = apt.status?.toUpperCase();
+                        return (status === 'CONFIRMED' || status === 'PENDING') && status !== 'HOLD';
+                      }).length}</h2>
+                      <p className="mb-0" style={{ opacity: 0.9, fontSize: '0.95rem' }}>Lịch hẹn sắp tới</p>
                     </div>
                   </div>
                 </div>
-                <div className="col-md-3">
-                  <div className="card shadow-sm border-danger">
-                    <div className="card-body text-center">
-                      <i className="fa fa-ambulance fa-2x text-danger mb-3"></i>
-                      <h3>{emergencies.length}</h3>
-                      <p className="text-muted mb-0">Emergency History</p>
+                <div className="col-md-3 col-sm-6">
+                  <div 
+                    className="card shadow-lg border-0 h-100"
+                    style={{
+                      background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                      borderRadius: '15px',
+                      transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+                      cursor: 'pointer'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-5px)';
+                      e.currentTarget.style.boxShadow = '0 10px 30px rgba(245, 87, 108, 0.4)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 5px 15px rgba(0,0,0,0.1)';
+                    }}
+                  >
+                    <div className="card-body text-center text-white p-4">
+                      <div className="mb-3" style={{ fontSize: '3rem', opacity: 0.9 }}>
+                        <i className="fa fa-ambulance"></i>
+                      </div>
+                      <h2 className="fw-bold mb-2">{emergencies.length}</h2>
+                      <p className="mb-0" style={{ opacity: 0.9, fontSize: '0.95rem' }}>Lịch sử cấp cứu</p>
                     </div>
                   </div>
                 </div>
-                <div className="col-md-3">
-                  <div className="card shadow-sm border-warning">
-                    <div className="card-body text-center">
-                      <i className="fa fa-vial fa-2x text-warning mb-3"></i>
-                      <h3>{testResults.length}</h3>
-                      <p className="text-muted mb-0">Test Results</p>
+                <div className="col-md-3 col-sm-6">
+                  <div 
+                    className="card shadow-lg border-0 h-100"
+                    style={{
+                      background: 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)',
+                      borderRadius: '15px',
+                      transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+                      cursor: 'pointer'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-5px)';
+                      e.currentTarget.style.boxShadow = '0 10px 30px rgba(252, 182, 159, 0.4)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 5px 15px rgba(0,0,0,0.1)';
+                    }}
+                  >
+                    <div className="card-body text-center p-4">
+                      <div className="mb-3" style={{ fontSize: '3rem', color: '#d35400' }}>
+                        <i className="fa fa-vial"></i>
+                      </div>
+                      <h2 className="fw-bold mb-2" style={{ color: '#d35400' }}>{testResults.length}</h2>
+                      <p className="mb-0 text-muted" style={{ fontSize: '0.95rem' }}>Kết quả xét nghiệm</p>
                     </div>
                   </div>
                 </div>
-                <div className="col-md-3">
-                  <div className="card shadow-sm border-success">
-                    <div className="card-body text-center">
-                      <i className="fa fa-pills fa-2x text-success mb-3"></i>
-                      <h3>{prescriptions.length}</h3>
-                      <p className="text-muted mb-0">Pharmacy Orders</p>
+                <div className="col-md-3 col-sm-6">
+                  <div 
+                    className="card shadow-lg border-0 h-100"
+                    style={{
+                      background: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
+                      borderRadius: '15px',
+                      transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+                      cursor: 'pointer'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-5px)';
+                      e.currentTarget.style.boxShadow = '0 10px 30px rgba(168, 237, 234, 0.4)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 5px 15px rgba(0,0,0,0.1)';
+                    }}
+                  >
+                    <div className="card-body text-center p-4">
+                      <div className="mb-3" style={{ fontSize: '3rem', color: '#27ae60' }}>
+                        <i className="fa fa-pills"></i>
+                      </div>
+                      <h2 className="fw-bold mb-2" style={{ color: '#27ae60' }}>{prescriptions.length}</h2>
+                      <p className="mb-0 text-muted" style={{ fontSize: '0.95rem' }}>Đơn thuốc</p>
                     </div>
                   </div>
                 </div>
@@ -273,66 +424,115 @@ export default function UserDashboard() {
           <div className="row g-4">
             {/* Upcoming Appointments */}
             <div className="col-lg-6">
-              <div className="card shadow-sm">
-                <div className="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                  <h5 className="mb-0">Upcoming Appointments</h5>
+              <div className="card shadow-lg border-0" style={{ borderRadius: '15px', overflow: 'hidden' }}>
+                <div 
+                  className="card-header text-white d-flex justify-content-between align-items-center py-3"
+                  style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
+                >
+                  <h5 className="mb-0 fw-bold">
+                    <i className="fa fa-calendar-check me-2"></i>
+                    Lịch hẹn sắp tới
+                  </h5>
                   <div className="d-flex gap-2">
-                    <Link href="/my-appointments" className="btn btn-sm btn-light">
+                    <Link href="/my-appointments" className="btn btn-sm btn-light" style={{ borderRadius: '8px' }}>
                       <i className="fa fa-list me-1"></i>Xem tất cả
                     </Link>
-                    <Link href="/services/outdoor-checkup" className="btn btn-sm btn-light">
-                      <i className="fa fa-plus me-1"></i>Book New
+                    <Link href="/services/outdoor-checkup" className="btn btn-sm btn-light" style={{ borderRadius: '8px' }}>
+                      <i className="fa fa-plus me-1"></i>Đặt lịch
                     </Link>
                   </div>
                 </div>
                 <div className="card-body">
                   {appointments.length === 0 ? (
-                    <div className="text-center py-4">
-                      <i className="fa fa-calendar-times fa-3x text-muted mb-3"></i>
-                      <p className="text-muted">No upcoming appointments</p>
-                      <Link href="/services/outdoor-checkup" className="btn btn-primary">
-                        Book Appointment
+                    <div className="text-center py-5">
+                      <div style={{ fontSize: '4rem', color: '#e0e0e0', marginBottom: '1rem' }}>
+                        <i className="fa fa-calendar-times"></i>
+                      </div>
+                      <h6 className="text-muted mb-3">Chưa có lịch hẹn nào</h6>
+                      <Link href="/services/outdoor-checkup" className="btn btn-primary" style={{ borderRadius: '10px' }}>
+                        <i className="fa fa-plus me-2"></i>Đặt lịch hẹn ngay
                       </Link>
                     </div>
                   ) : (
                     <div className="list-group list-group-flush">
                       {appointments
-                        .filter(apt => apt.status === 'CONFIRMED' || apt.status === 'PENDING')
+                        .filter(apt => {
+                          const status = apt.status?.toUpperCase();
+                          return (status === 'CONFIRMED' || status === 'PENDING') && status !== 'HOLD';
+                        })
                         .slice(0, 5)
                         .map((apt) => (
-                        <div key={apt.id} className="list-group-item">
+                        <div 
+                          key={apt.id} 
+                          className="list-group-item border-0"
+                          style={{
+                            borderBottom: '1px solid #f0f0f0 !important',
+                            transition: 'background-color 0.2s ease',
+                            cursor: 'pointer'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                        >
                           <div className="d-flex justify-content-between align-items-start">
-                            <div>
-                              <h6 className="mb-1">{apt.doctorName || `Doctor ${apt.doctorId}`}</h6>
-                              <small className="text-muted">
-                                {apt.appointmentTime ? new Date(apt.appointmentTime).toLocaleString('vi-VN') : 'N/A'}
-                              </small>
-                              <br />
-                              <span className={`badge ${
-                                apt.status === 'CONFIRMED' ? 'bg-info' :
-                                apt.status === 'PENDING' ? 'bg-warning' :
-                                apt.status === 'CHECKED_IN' ? 'bg-primary' :
-                                apt.status === 'IN_PROGRESS' ? 'bg-warning text-dark' :
-                                apt.status === 'REVIEW' ? 'bg-primary' :
-                                apt.status === 'COMPLETED' ? 'bg-success' :
-                                apt.status === 'CANCELLED' || apt.status === 'CANCELLED_BY_PATIENT' || apt.status === 'CANCELLED_BY_DOCTOR' ? 'bg-danger' :
-                                apt.status === 'REJECTED' ? 'bg-danger' :
-                                apt.status === 'EXPIRED' ? 'bg-secondary' :
-                                apt.status === 'NO_SHOW' ? 'bg-secondary' :
-                                'bg-info'
-                              }`}>
+                            <div className="flex-grow-1">
+                              <div className="d-flex align-items-center mb-2">
+                                <div 
+                                  className="rounded-circle d-flex align-items-center justify-content-center me-3"
+                                  style={{ 
+                                    width: '45px', 
+                                    height: '45px', 
+                                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                    color: 'white'
+                                  }}
+                                >
+                                  <i className="fa fa-user-md"></i>
+                                </div>
+                                <div>
+                                  <h6 className="mb-0 fw-bold">{apt.doctorName || `Bác sĩ ${apt.doctorId}`}</h6>
+                                  <small className="text-muted">
+                                    <i className="fa fa-clock me-1"></i>
+                                    {apt.appointmentTime ? new Date(apt.appointmentTime).toLocaleString('vi-VN', {
+                                      day: '2-digit',
+                                      month: '2-digit',
+                                      year: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    }) : 'N/A'}
+                                  </small>
+                                </div>
+                              </div>
+                              <span 
+                                className={`badge px-3 py-2`}
+                                style={{
+                                  background: apt.status === 'CONFIRMED' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' :
+                                            apt.status === 'PENDING' ? 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' :
+                                            apt.status === 'CHECKED_IN' ? 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' :
+                                            apt.status === 'IN_PROGRESS' ? 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)' :
+                                            apt.status === 'REVIEW' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' :
+                                            apt.status === 'COMPLETED' ? 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)' :
+                                            'linear-gradient(135deg, #e0e0e0 0%, #bdbdbd 100%)',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '20px',
+                                  fontSize: '0.75rem',
+                                  fontWeight: '600'
+                                }}
+                              >
                                 {apt.status === 'REVIEW' ? 'Chờ đánh giá' : 
                                  apt.status === 'REJECTED' ? 'Đã từ chối' :
                                  apt.status === 'EXPIRED' ? 'Hết hạn' :
                                  apt.status === 'CANCELLED_BY_DOCTOR' ? 'Đã hủy (bác sĩ)' :
                                  apt.status === 'CANCELLED_BY_PATIENT' ? 'Đã hủy (bệnh nhân)' :
+                                 apt.status === 'CONFIRMED' ? 'Đã xác nhận' :
+                                 apt.status === 'PENDING' ? 'Đang chờ' :
                                  apt.status}
                               </span>
                             </div>
-                            <div className="d-flex gap-1">
+                            <div className="d-flex gap-2 align-items-center">
                               {canReviewAppointment(apt) && (
                                 <button 
-                                  className="btn btn-warning btn-sm"
+                                  className="btn btn-warning btn-sm rounded-circle"
+                                  style={{ width: '35px', height: '35px', padding: 0 }}
                                   onClick={() => handleReviewClick(apt)}
                                   title="Đánh giá bác sĩ"
                                 >
@@ -340,21 +540,25 @@ export default function UserDashboard() {
                                 </button>
                               )}
                               {apt.id && appointmentReviews.get(apt.id) && (
-                                <span className="badge bg-success align-self-center">
+                                <span className="badge bg-success rounded-circle" style={{ width: '35px', height: '35px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                   <i className="fa fa-check"></i>
                                 </span>
                               )}
                               <button 
                                 className="btn btn-outline-primary btn-sm"
+                                style={{ borderRadius: '8px' }}
                                 onClick={() => handleViewDetails('appointment', apt)}
                               >
-                                View
+                                <i className="fa fa-eye me-1"></i>Xem
                               </button>
                             </div>
                           </div>
                         </div>
                       ))}
-                      {appointments.filter(apt => apt.status === 'CONFIRMED' || apt.status === 'PENDING').length === 0 && (
+                      {appointments.filter(apt => {
+                        const status = apt.status?.toUpperCase();
+                        return (status === 'CONFIRMED' || status === 'PENDING') && status !== 'HOLD';
+                      }).length === 0 && (
                         <div className="text-center py-4">
                           <i className="fa fa-calendar-times fa-3x text-muted mb-3"></i>
                           <p className="text-muted">No upcoming appointments</p>
@@ -368,11 +572,17 @@ export default function UserDashboard() {
 
             {/* Emergency History */}
             <div className="col-lg-6">
-              <div className="card shadow-sm">
-                <div className="card-header bg-danger text-white d-flex justify-content-between align-items-center">
-                  <h5 className="mb-0">Emergency History</h5>
-                  <Link href="/services/emergency" className="btn btn-sm btn-light">
-                    Request Help
+              <div className="card shadow-lg border-0" style={{ borderRadius: '15px', overflow: 'hidden' }}>
+                <div 
+                  className="card-header text-white d-flex justify-content-between align-items-center py-3"
+                  style={{ background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' }}
+                >
+                  <h5 className="mb-0 fw-bold">
+                    <i className="fa fa-ambulance me-2"></i>
+                    Lịch sử cấp cứu
+                  </h5>
+                  <Link href="/services/emergency" className="btn btn-sm btn-light" style={{ borderRadius: '8px' }}>
+                    <i className="fa fa-plus me-1"></i>Yêu cầu hỗ trợ
                   </Link>
                 </div>
                 <div className="card-body">
@@ -427,11 +637,17 @@ export default function UserDashboard() {
 
             {/* Test Results */}
             <div className="col-lg-6">
-              <div className="card shadow-sm">
-                <div className="card-header bg-warning text-white d-flex justify-content-between align-items-center">
-                  <h5 className="mb-0">Test Results</h5>
-                  <Link href="/services/blood-testing" className="btn btn-sm btn-light">
-                    Book Test
+              <div className="card shadow-lg border-0" style={{ borderRadius: '15px', overflow: 'hidden' }}>
+                <div 
+                  className="card-header text-white d-flex justify-content-between align-items-center py-3"
+                  style={{ background: 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)' }}
+                >
+                  <h5 className="mb-0 fw-bold" style={{ color: '#d35400' }}>
+                    <i className="fa fa-vial me-2"></i>
+                    Kết quả xét nghiệm
+                  </h5>
+                  <Link href="/services/blood-testing" className="btn btn-sm" style={{ borderRadius: '8px', background: '#d35400', color: 'white', border: 'none' }}>
+                    <i className="fa fa-plus me-1"></i>Đặt lịch
                   </Link>
                 </div>
                 <div className="card-body">
@@ -488,11 +704,17 @@ export default function UserDashboard() {
 
             {/* Prescriptions */}
             <div className="col-lg-6">
-              <div className="card shadow-sm">
-                <div className="card-header bg-success text-white d-flex justify-content-between align-items-center">
-                  <h5 className="mb-0">Prescriptions</h5>
-                  <Link href="/services/pharmacy" className="btn btn-sm btn-light">
-                    Order Medicine
+              <div className="card shadow-lg border-0" style={{ borderRadius: '15px', overflow: 'hidden' }}>
+                <div 
+                  className="card-header d-flex justify-content-between align-items-center py-3"
+                  style={{ background: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)' }}
+                >
+                  <h5 className="mb-0 fw-bold" style={{ color: '#27ae60' }}>
+                    <i className="fa fa-pills me-2"></i>
+                    Đơn thuốc
+                  </h5>
+                  <Link href="/services/pharmacy" className="btn btn-sm" style={{ borderRadius: '8px', background: '#27ae60', color: 'white', border: 'none' }}>
+                    <i className="fa fa-shopping-cart me-1"></i>Đặt thuốc
                   </Link>
                 </div>
                 <div className="card-body">
@@ -549,32 +771,113 @@ export default function UserDashboard() {
           )}
 
           {/* Quick Actions */}
-          <div className="row g-4 mt-4">
+          <div className="row g-4 mt-5">
             <div className="col-12">
-              <div className="card shadow-sm">
-                <div className="card-header">
-                  <h5 className="mb-0">Quick Actions</h5>
+              <div className="card shadow-lg border-0" style={{ borderRadius: '15px', overflow: 'hidden' }}>
+                <div className="card-header bg-white py-3">
+                  <h5 className="mb-0 fw-bold">
+                    <i className="fa fa-bolt me-2 text-warning"></i>
+                    Thao tác nhanh
+                  </h5>
                 </div>
-                <div className="card-body">
+                <div className="card-body p-4">
                   <div className="row g-3">
-                    <div className="col-md-3">
-                      <Link href="/services/emergency" className="btn btn-danger w-100">
-                        <i className="fa fa-ambulance me-2"></i>Emergency
+                    <div className="col-md-3 col-sm-6">
+                      <Link 
+                        href="/services/emergency" 
+                        className="btn w-100 text-white fw-bold"
+                        style={{
+                          background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                          borderRadius: '12px',
+                          padding: '15px',
+                          transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+                          border: 'none'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = 'translateY(-3px)';
+                          e.currentTarget.style.boxShadow = '0 8px 20px rgba(245, 87, 108, 0.4)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = 'translateY(0)';
+                          e.currentTarget.style.boxShadow = 'none';
+                        }}
+                      >
+                        <i className="fa fa-ambulance fa-2x d-block mb-2"></i>
+                        Cấp cứu
                       </Link>
                     </div>
-                    <div className="col-md-3">
-                      <Link href="/services/outdoor-checkup" className="btn btn-primary w-100">
-                        <i className="fa fa-stethoscope me-2"></i>Book Appointment
+                    <div className="col-md-3 col-sm-6">
+                      <Link 
+                        href="/services/outdoor-checkup" 
+                        className="btn w-100 text-white fw-bold"
+                        style={{
+                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                          borderRadius: '12px',
+                          padding: '15px',
+                          transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+                          border: 'none'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = 'translateY(-3px)';
+                          e.currentTarget.style.boxShadow = '0 8px 20px rgba(102, 126, 234, 0.4)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = 'translateY(0)';
+                          e.currentTarget.style.boxShadow = 'none';
+                        }}
+                      >
+                        <i className="fa fa-stethoscope fa-2x d-block mb-2"></i>
+                        Đặt lịch khám
                       </Link>
                     </div>
-                    <div className="col-md-3">
-                      <Link href="/services/blood-testing" className="btn btn-warning w-100">
-                        <i className="fa fa-vial me-2"></i>Blood Test
+                    <div className="col-md-3 col-sm-6">
+                      <Link 
+                        href="/services/blood-testing" 
+                        className="btn w-100 fw-bold"
+                        style={{
+                          background: 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)',
+                          color: '#d35400',
+                          borderRadius: '12px',
+                          padding: '15px',
+                          transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+                          border: 'none'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = 'translateY(-3px)';
+                          e.currentTarget.style.boxShadow = '0 8px 20px rgba(252, 182, 159, 0.4)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = 'translateY(0)';
+                          e.currentTarget.style.boxShadow = 'none';
+                        }}
+                      >
+                        <i className="fa fa-vial fa-2x d-block mb-2"></i>
+                        Xét nghiệm máu
                       </Link>
                     </div>
-                    <div className="col-md-3">
-                      <Link href="/services/pharmacy" className="btn btn-success w-100">
-                        <i className="fa fa-pills me-2"></i>Pharmacy
+                    <div className="col-md-3 col-sm-6">
+                      <Link 
+                        href="/services/pharmacy" 
+                        className="btn w-100 fw-bold"
+                        style={{
+                          background: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
+                          color: '#27ae60',
+                          borderRadius: '12px',
+                          padding: '15px',
+                          transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+                          border: 'none'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = 'translateY(-3px)';
+                          e.currentTarget.style.boxShadow = '0 8px 20px rgba(168, 237, 234, 0.4)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = 'translateY(0)';
+                          e.currentTarget.style.boxShadow = 'none';
+                        }}
+                      >
+                        <i className="fa fa-pills fa-2x d-block mb-2"></i>
+                        Nhà thuốc
                       </Link>
                     </div>
                   </div>
@@ -669,6 +972,21 @@ export default function UserDashboard() {
                         <p className="mb-0">{selectedItem.notes}</p>
                       </div>
                     )}
+                    {canCancelAppointment(selectedItem) && (
+                      <div className="mb-3">
+                        <button
+                          className="btn btn-danger w-100"
+                          onClick={() => {
+                            setShowModal(false);
+                            handleCancelClick(selectedItem);
+                          }}
+                          style={{ borderRadius: '10px' }}
+                        >
+                          <i className="fa fa-times me-2"></i>
+                          Hủy lịch hẹn
+                        </button>
+                      </div>
+                    )}
                     {canReviewAppointment(selectedItem) && (
                       <div className="mb-3">
                         <button
@@ -677,6 +995,7 @@ export default function UserDashboard() {
                             setShowModal(false);
                             handleReviewClick(selectedItem);
                           }}
+                          style={{ borderRadius: '10px' }}
                         >
                           <i className="fa fa-star me-2"></i>
                           Đánh giá bác sĩ
@@ -973,6 +1292,112 @@ export default function UserDashboard() {
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={handleCloseModal}>
                   Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel Appointment Modal */}
+      {showCancelModal && selectedAppointmentForCancel && (
+        <div
+          className="modal fade show"
+          style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }}
+          tabIndex={-1}
+          role="dialog"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowCancelModal(false);
+            }
+          }}
+        >
+          <div className="modal-dialog modal-dialog-centered" role="document" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content" style={{ borderRadius: '15px', overflow: 'hidden' }}>
+              <div className="modal-header bg-danger text-white">
+                <h5 className="modal-title">
+                  <i className="fa fa-times-circle me-2"></i>
+                  Hủy lịch hẹn
+                </h5>
+                <button
+                  type="button"
+                  className="btn-close btn-close-white"
+                  onClick={() => setShowCancelModal(false)}
+                  disabled={isCancelling}
+                ></button>
+              </div>
+              <div className="modal-body p-4">
+                <div className="mb-4">
+                  <h6 className="fw-bold mb-2">Thông tin lịch hẹn:</h6>
+                  <p className="mb-1">
+                    <strong>Bác sĩ:</strong> {selectedAppointmentForCancel.doctorName || `Bác sĩ #${selectedAppointmentForCancel.doctorId}`}
+                  </p>
+                  <p className="mb-1">
+                    <strong>Thời gian:</strong>{' '}
+                    {selectedAppointmentForCancel.appointmentTime 
+                      ? new Date(selectedAppointmentForCancel.appointmentTime).toLocaleString('vi-VN', {
+                          weekday: 'long',
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })
+                      : 'N/A'}
+                  </p>
+                </div>
+
+                <div className="alert alert-warning mb-4" style={{ borderRadius: '10px' }}>
+                  <i className="fa fa-exclamation-triangle me-2"></i>
+                  <strong>Lưu ý:</strong> Bạn có chắc chắn muốn hủy lịch hẹn này? Lý do hủy sẽ được gửi cho bác sĩ.
+                </div>
+
+                <div className="mb-3">
+                  <label className="form-label fw-bold">
+                    Lý do hủy lịch <span className="text-muted">(tùy chọn)</span>
+                  </label>
+                  <textarea
+                    className="form-control"
+                    rows={4}
+                    placeholder="Vui lòng chia sẻ lý do hủy lịch hẹn của bạn. Thông tin này sẽ giúp bác sĩ hiểu rõ hơn..."
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                    disabled={isCancelling}
+                    style={{ borderRadius: '10px' }}
+                  ></textarea>
+                  <small className="text-muted">
+                    Lý do hủy sẽ được gửi cho bác sĩ để họ có thể cải thiện dịch vụ.
+                  </small>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowCancelModal(false)}
+                  disabled={isCancelling}
+                  style={{ borderRadius: '8px' }}
+                >
+                  Quay lại
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  onClick={handleSubmitCancel}
+                  disabled={isCancelling}
+                  style={{ borderRadius: '8px' }}
+                >
+                  {isCancelling ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                      Đang hủy...
+                    </>
+                  ) : (
+                    <>
+                      <i className="fa fa-times me-2"></i>
+                      Xác nhận hủy
+                    </>
+                  )}
                 </button>
               </div>
             </div>

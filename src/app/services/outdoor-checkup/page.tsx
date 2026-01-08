@@ -53,6 +53,12 @@ export default function OutdoorCheckupPage() {
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
   const [showRejectedModal, setShowRejectedModal] = useState(false);
   const [showExpiredModal, setShowExpiredModal] = useState(false);
+  const [lastSlotClickTime, setLastSlotClickTime] = useState<number>(0);
+  const [slotClickCount, setSlotClickCount] = useState<number>(0);
+  const [isRateLimited, setIsRateLimited] = useState<boolean>(false);
+  const [myAppointments, setMyAppointments] = useState<any[]>([]);
+  const [isLoadingMyAppointments, setIsLoadingMyAppointments] = useState(false);
+  const [confirmedAppointmentIds, setConfirmedAppointmentIds] = useState<Set<number>>(new Set());
 
   // Department enum values with display names and icons
   const departmentList = [
@@ -225,12 +231,19 @@ export default function OutdoorCheckupPage() {
   // Load busy schedules when doctor is selected
   useEffect(() => {
     if (selectedDoctor) {
-      loadBusySchedules(Number(selectedDoctor));
+      // Load my appointments first if authenticated, then load busy schedules
+      if (isAuthenticated() && step === 'datetime') {
+        loadMyAppointments().then(() => {
+          loadBusySchedules(Number(selectedDoctor));
+        });
+      } else {
+        loadBusySchedules(Number(selectedDoctor));
+      }
     } else {
       setBusySchedules([]);
       setBookedSlots(new Set());
     }
-  }, [selectedDoctor, selectedWeek]);
+  }, [selectedDoctor, selectedWeek, step]);
 
   // Countdown timer when in 'info' step with holdAppointmentId
   useEffect(() => {
@@ -267,6 +280,81 @@ export default function OutdoorCheckupPage() {
     }
   }, [step, holdAppointmentId, holdStartTime]);
 
+  // Load user's appointments when entering datetime step
+  useEffect(() => {
+    if (step === 'datetime' && isAuthenticated()) {
+      loadMyAppointments();
+    }
+  }, [step]);
+
+  // Clear holdAppointmentId when back to datetime step if appointment already confirmed
+  useEffect(() => {
+    if (step === 'datetime' && holdAppointmentId) {
+      // Check if appointment is already confirmed
+      const checkAppointmentStatus = async () => {
+        try {
+          const appointmentApi = getAppointmentManagement();
+          const myApts = await appointmentApi.getMyAppointments();
+          const appointments = Array.isArray(myApts) ? myApts : [];
+          const currentAppt = appointments.find((apt: any) => apt.id === holdAppointmentId);
+          
+          // If appointment is CONFIRMED, clear holdAppointmentId (no longer a HOLD)
+          if (currentAppt?.status === 'CONFIRMED') {
+            setHoldAppointmentId(null);
+            setSelectedDate('');
+            setSelectedTime('');
+          }
+        } catch (error) {
+          console.error('Error checking appointment status:', error);
+        }
+      };
+      
+      checkAppointmentStatus();
+    }
+  }, [step, holdAppointmentId]);
+
+  // Load user's appointments
+  const loadMyAppointments = useCallback(async () => {
+    if (!isAuthenticated()) {
+      setMyAppointments([]);
+      setConfirmedAppointmentIds(new Set());
+      return;
+    }
+
+    try {
+      setIsLoadingMyAppointments(true);
+      const appointmentApi = getAppointmentManagement();
+      const response = await appointmentApi.getMyAppointments();
+      const appointments = Array.isArray(response) ? response : [];
+      
+      // Filter only active appointments (not CANCELLED, REJECTED, EXPIRED, COMPLETED)
+      const activeAppointments = appointments.filter((apt: any) => {
+        const status = apt.status?.toUpperCase();
+        return !['CANCELLED', 'REJECTED', 'EXPIRED', 'COMPLETED', 'CANCELLED_BY_DOCTOR', 'CANCELLED_BY_PATIENT'].includes(status);
+      });
+      
+      setMyAppointments(activeAppointments);
+      
+      // Store appointment IDs (PENDING, CONFIRMED) to exclude from busy schedules
+      // These are the user's own appointments, so they shouldn't see them as "booked by others"
+      const myAppointmentIds = new Set<number>();
+      appointments.forEach((apt: any) => {
+        const status = apt.status?.toUpperCase();
+        // Include both PENDING and CONFIRMED appointments
+        if ((status === 'CONFIRMED' || status === 'PENDING') && apt.id) {
+          myAppointmentIds.add(apt.id);
+        }
+      });
+      setConfirmedAppointmentIds(myAppointmentIds);
+    } catch (error) {
+      console.error('Error loading my appointments:', error);
+      setMyAppointments([]);
+      setConfirmedAppointmentIds(new Set());
+    } finally {
+      setIsLoadingMyAppointments(false);
+    }
+  }, []);
+
   // Load busy schedules for the selected doctor
   const loadBusySchedules = useCallback(async (doctorId: number) => {
     try {
@@ -278,8 +366,16 @@ export default function OutdoorCheckupPage() {
 
       // Convert busy schedules to booked slots
       // Exclude HOLD slots that belong to current user if they've selected a different slot
+      // Also exclude CONFIRMED appointments of the current user
       const slots = new Set<string>();
       schedules.forEach((schedule) => {
+        // Exclude appointments of the current user (PENDING or CONFIRMED)
+        if (schedule.type === 'APPOINTMENT' && 
+            schedule.appointmentId && 
+            confirmedAppointmentIds.has(schedule.appointmentId)) {
+          return; // Skip this slot - it's the user's own appointment
+        }
+        
         // If this is a HOLD slot and user has selected a different slot, exclude it from booked slots
         if (schedule.type === 'HOLD' && 
             schedule.appointmentId === holdAppointmentId && 
@@ -344,7 +440,7 @@ export default function OutdoorCheckupPage() {
     } finally {
       setIsLoadingBusySchedules(false);
     }
-  }, []);
+  }, [holdAppointmentId, selectedDate, selectedTime, confirmedAppointmentIds]);
 
   const handleClinicSelect = (clinicId: string) => {
     setSelectedClinic(clinicId);
@@ -487,8 +583,18 @@ export default function OutdoorCheckupPage() {
         setStep('detail');
         setErrorMessage(''); // Clear any previous errors
         
+        // Update appointment IDs if appointment is PENDING or CONFIRMED
+        if ((appointment.status === 'CONFIRMED' || appointment.status === 'PENDING') && appointment.id) {
+          setConfirmedAppointmentIds(prev => new Set([...prev, appointment.id]));
+        }
+        
         // Reload busy schedules to update display
         await loadBusySchedules(Number(selectedDoctor));
+        
+        // Reload my appointments to update confirmed list
+        if (isAuthenticated()) {
+          await loadMyAppointments();
+        }
         
         // Start checking appointment status if still PENDING
         if (appointment.status === 'PENDING') {
@@ -638,6 +744,7 @@ export default function OutdoorCheckupPage() {
 
   // Get busy schedule info for a specific slot
   // Exclude HOLD slots that belong to the current user (holdAppointmentId) if user has selected a different slot
+  // Also exclude CONFIRMED appointments of the current user
   const getSlotBusyInfo = (date: Date, hour: number): BusyScheduleResponse | null => {
     const slotDateTime = new Date(date);
     slotDateTime.setHours(hour, 0, 0, 0);
@@ -653,6 +760,14 @@ export default function OutdoorCheckupPage() {
     })();
     
     for (const schedule of busySchedules) {
+      // Exclude appointments of the current user (PENDING or CONFIRMED)
+      // If this is an APPOINTMENT slot and it belongs to the user's appointment, skip it
+      if (schedule.type === 'APPOINTMENT' && 
+          schedule.appointmentId && 
+          confirmedAppointmentIds.has(schedule.appointmentId)) {
+        continue; // Skip this slot - it's the user's own appointment
+      }
+      
       // If this is a HOLD slot and user has selected a different slot, skip it
       // (This is the user's own HOLD that they're replacing)
       if (schedule.type === 'HOLD' && 
@@ -685,9 +800,36 @@ export default function OutdoorCheckupPage() {
     return null;
   };
 
+  // Check if user already has an appointment on this date
+  const hasAppointmentOnDate = (date: Date): boolean => {
+    if (!isAuthenticated() || myAppointments.length === 0) {
+      return false;
+    }
+
+    const dateStr = formatDateToString(date);
+    
+    return myAppointments.some((apt: any) => {
+      if (!apt.appointmentDateTime) return false;
+      
+      const aptDate = new Date(apt.appointmentDateTime);
+      const aptDateStr = formatDateToString(aptDate);
+      
+      return aptDateStr === dateStr;
+    });
+  };
+
   // Check if a slot is booked
   const isSlotBooked = (date: Date, hour: number): boolean => {
     return getSlotBusyInfo(date, hour) !== null;
+  };
+
+  // Check if slot should be disabled (booked OR user already has appointment on this date)
+  const isSlotDisabled = (date: Date, hour: number): boolean => {
+    const isPast = isPastTime(date, hour);
+    const isBooked = isSlotBooked(date, hour);
+    const hasAppointment = hasAppointmentOnDate(date);
+    
+    return isPast || isBooked || hasAppointment;
   };
 
   // Get slot type (APPOINTMENT or LEAVE)
@@ -727,7 +869,35 @@ export default function OutdoorCheckupPage() {
   };
 
   // Handle slot selection - Only set selected date/time, don't call API
+  // Added rate limiting to prevent abuse
   const handleSlotSelection = (date: Date, hour: number) => {
+    // Rate limiting: max 5 clicks per 3 seconds
+    const now = Date.now();
+    const timeSinceLastClick = now - lastSlotClickTime;
+    
+    if (timeSinceLastClick < 3000) { // 3 seconds
+      setSlotClickCount(prev => prev + 1);
+      if (slotClickCount >= 4) { // 5 clicks total (0-4)
+        setIsRateLimited(true);
+        setErrorMessage('Vui lòng chờ một chút trước khi chọn lại. Đang bảo vệ hệ thống khỏi spam.');
+        setTimeout(() => {
+          setIsRateLimited(false);
+          setSlotClickCount(0);
+        }, 3000);
+        return;
+      }
+    } else {
+      // Reset counter if more than 3 seconds passed
+      setSlotClickCount(0);
+      setIsRateLimited(false);
+    }
+    
+    setLastSlotClickTime(now);
+
+    if (isRateLimited) {
+      return;
+    }
+
     if (isPastTime(date, hour)) {
       setErrorMessage('Không thể chọn lịch trong quá khứ.');
       return;
@@ -890,26 +1060,53 @@ export default function OutdoorCheckupPage() {
     }
   };
 
-  // Navigate to previous week
+  // Navigate to previous week - Only allow going back to current week
   const goToPreviousWeek = async () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const currentWeekStart = getWeekStart(today);
+    const selectedWeekStart = getWeekStart(selectedWeek);
+    
+    // Don't allow going back before current week
+    if (selectedWeekStart.getTime() <= currentWeekStart.getTime()) {
+      setErrorMessage('Không thể xem lịch trong quá khứ.');
+      return;
+    }
+    
     const newWeek = new Date(selectedWeek);
     newWeek.setDate(newWeek.getDate() - 7);
     setSelectedWeek(newWeek);
     setSelectedDate('');
     setSelectedTime('');
+    setErrorMessage('');
     // Reload busy schedules for the new week
     if (selectedDoctor) {
       await loadBusySchedules(Number(selectedDoctor));
     }
   };
 
-  // Navigate to next week
+  // Navigate to next week - Limit to 2 weeks ahead for security
   const goToNextWeek = async () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const currentWeekStart = getWeekStart(today);
+    const maxWeekStart = new Date(currentWeekStart);
+    maxWeekStart.setDate(maxWeekStart.getDate() + 14); // 2 weeks ahead
+    
     const newWeek = new Date(selectedWeek);
     newWeek.setDate(newWeek.getDate() + 7);
+    const newWeekStart = getWeekStart(newWeek);
+    
+    // Don't allow going more than 2 weeks ahead
+    if (newWeekStart.getTime() > maxWeekStart.getTime()) {
+      setErrorMessage('Chỉ có thể đặt lịch trong vòng 2 tuần tới. Vui lòng chọn lịch sớm hơn.');
+      return;
+    }
+    
     setSelectedWeek(newWeek);
     setSelectedDate('');
     setSelectedTime('');
+    setErrorMessage('');
     // Reload busy schedules for the new week
     if (selectedDoctor) {
       await loadBusySchedules(Number(selectedDoctor));
@@ -946,6 +1143,16 @@ export default function OutdoorCheckupPage() {
   // Calculate week days and hours for the grid
   const weekStart = getWeekStart(selectedWeek);
   const weekDays = getWeekDays(weekStart);
+  
+  // Check if we can navigate to previous/next week (for UI)
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const currentWeekStart = getWeekStart(today);
+  const maxWeekStart = new Date(currentWeekStart);
+  maxWeekStart.setDate(maxWeekStart.getDate() + 14); // 2 weeks ahead
+  
+  const canGoPrevious = weekStart.getTime() > currentWeekStart.getTime();
+  const canGoNext = weekStart.getTime() < maxWeekStart.getTime();
   const hours = getHours(); // 8-17
   const dayNames = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
 
@@ -1337,7 +1544,8 @@ export default function OutdoorCheckupPage() {
                                type="button"
                                className="btn btn-outline-primary"
                                onClick={goToPreviousWeek}
-                               disabled={isLoadingBusySchedules}
+                               disabled={isLoadingBusySchedules || !canGoPrevious}
+                               title={!canGoPrevious ? 'Đã ở tuần hiện tại' : ''}
                              >
                                <i className="fa fa-chevron-left me-2"></i>Tuần trước
                              </button>
@@ -1347,12 +1555,14 @@ export default function OutdoorCheckupPage() {
                                )}
                                {weekStart.toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric', year: 'numeric' })} - {' '}
                                {weekDays[6].toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric', year: 'numeric' })}
+                               <small className="text-muted ms-2">(Tối đa 2 tuần tới)</small>
                              </h6>
                              <button
                                type="button"
                                className="btn btn-outline-primary"
                                onClick={goToNextWeek}
-                               disabled={isLoadingBusySchedules}
+                               disabled={isLoadingBusySchedules || !canGoNext}
+                               title={!canGoNext ? 'Chỉ có thể đặt lịch trong vòng 2 tuần tới' : ''}
                              >
                                Tuần sau<i className="fa fa-chevron-right ms-2"></i>
                              </button>
@@ -1455,17 +1665,15 @@ export default function OutdoorCheckupPage() {
                                       if (isSelected) {
                                         btnClass += ' btn-primary';
                                       } else if (isBooked) {
-                                        if (slotType === 'APPOINTMENT') {
+                                        // Security: Display LEAVE slots as APPOINTMENT to protect doctor privacy
+                                        if (slotType === 'APPOINTMENT' || slotType === 'LEAVE') {
+                                          // Both APPOINTMENT and LEAVE show as "Đã đặt lịch" (red)
                                           btnClass += ' btn-danger';
                                           btnStyle.background = 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)';
                                           btnStyle.color = 'white';
                                         } else if (slotType === 'HOLD') {
                                           btnClass += ' btn-info pulse-animation';
                                           btnStyle.background = 'linear-gradient(135deg, #17a2b8 0%, #138496 100%)';
-                                          btnStyle.color = 'white';
-                                        } else if (slotType === 'LEAVE') {
-                                          btnClass += ' btn-warning';
-                                          btnStyle.background = 'linear-gradient(135deg, #ffc107 0%, #e0a800 100%)';
                                           btnStyle.color = 'white';
                                         } else {
                                           btnClass += ' btn-danger';
@@ -1477,32 +1685,21 @@ export default function OutdoorCheckupPage() {
                                         btnClass += ' btn-outline-primary';
                                       }
 
-                                      // Build tooltip text
+                                      // Build tooltip text - Hide sensitive information for security
                                       let tooltipText = '';
                                       if (isPast) {
                                         tooltipText = 'Lịch đã qua';
                                       } else if (isBooked && busyInfo) {
-                                        const startTime = busyInfo.startDateTime 
-                                          ? new Date(busyInfo.startDateTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
-                                          : busyInfo.startDate;
-                                        const endTime = busyInfo.endDateTime 
-                                          ? new Date(busyInfo.endDateTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
-                                          : busyInfo.endDate;
-                                        
-                                        if (slotType === 'APPOINTMENT') {
-                                          tooltipText = '📅 Cuộc hẹn\n';
+                                        // Security: Only show basic status, hide detailed information
+                                        // Display LEAVE as APPOINTMENT to protect doctor privacy
+                                        if (slotType === 'APPOINTMENT' || slotType === 'LEAVE') {
+                                          tooltipText = '📅 Cuộc hẹn đã được đặt';
                                         } else if (slotType === 'HOLD') {
-                                          tooltipText = '⏳ Đang giữ chỗ (5 phút)\n';
+                                          tooltipText = '⏳ Đang giữ chỗ';
                                         } else {
-                                          tooltipText = '🏖️ Nghỉ phép\n';
+                                          tooltipText = '📅 Cuộc hẹn đã được đặt';
                                         }
-                                        
-                                        if (startTime && endTime) {
-                                          tooltipText += `Thời gian: ${startTime} - ${endTime}\n`;
-                                        }
-                                        if (busyInfo.reason) {
-                                          tooltipText += `Lý do: ${busyInfo.reason}`;
-                                        }
+                                        // Do not show reason or detailed time information for security
                                       } else {
                                         tooltipText = `Chọn ${dayNames[dayIndex]} ${date.toLocaleDateString('vi-VN')} lúc ${hour}:00`;
                                       }
@@ -1545,21 +1742,22 @@ export default function OutdoorCheckupPage() {
                                                   ? new Date(busyInfo.endDateTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
                                                   : busyInfo.endDate;
                                                 
+                                                // Security: Hide sensitive information (reason, detailed times)
+                                                // Display LEAVE as APPOINTMENT to protect doctor privacy
                                                 let typeLabel = '';
-                                                if (slotType === 'APPOINTMENT') {
-                                                  typeLabel = '📅 Cuộc hẹn';
+                                                if (slotType === 'APPOINTMENT' || slotType === 'LEAVE') {
+                                                  typeLabel = '📅 Cuộc hẹn đã được đặt';
                                                 } else if (slotType === 'HOLD') {
-                                                  typeLabel = '⏳ Đang giữ chỗ (5 phút)';
+                                                  typeLabel = '⏳ Đang giữ chỗ';
                                                 } else {
-                                                  typeLabel = '🏖️ Nghỉ phép';
+                                                  typeLabel = '📅 Cuộc hẹn đã được đặt';
                                                 }
                                                 
+                                                // Only show basic status, hide detailed information for doctor privacy
                                                 tooltip.innerHTML = `
-                                                  <div style="font-weight: bold; margin-bottom: 4px;">
+                                                  <div style="font-weight: bold;">
                                                     ${typeLabel}
                                                   </div>
-                                                  ${startTime && endTime ? `<div style="margin-bottom: 4px;">⏰ ${startTime} - ${endTime}</div>` : ''}
-                                                  ${busyInfo.reason ? `<div style="font-size: 0.8rem; opacity: 0.9;">${busyInfo.reason}</div>` : ''}
                                                 `;
                                                 
                                                 document.body.appendChild(tooltip);
@@ -1578,22 +1776,14 @@ export default function OutdoorCheckupPage() {
                                             }}
                                           >
                                             {isBooked ? (
-                                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-                                                {slotType === 'APPOINTMENT' ? (
-                                                  <>
-                                                    <i className="fa fa-calendar-check" style={{ fontSize: '1rem' }}></i>
-                                                    <span style={{ fontSize: '0.7rem', fontWeight: 'bold' }}>Hẹn</span>
-                                                  </>
+                                              // Just show icon, no text - color indicates status
+                                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                {(slotType === 'APPOINTMENT' || slotType === 'LEAVE') ? (
+                                                  <i className="fa fa-calendar-check" style={{ fontSize: '1.2rem' }}></i>
                                                 ) : slotType === 'HOLD' ? (
-                                                  <>
-                                                    <i className="fa fa-clock" style={{ fontSize: '1rem' }}></i>
-                                                    <span style={{ fontSize: '0.7rem', fontWeight: 'bold' }}>Giữ</span>
-                                                  </>
+                                                  <i className="fa fa-clock" style={{ fontSize: '1.2rem' }}></i>
                                                 ) : (
-                                                  <>
-                                                    <i className="fa fa-umbrella-beach" style={{ fontSize: '1rem' }}></i>
-                                                    <span style={{ fontSize: '0.7rem', fontWeight: 'bold' }}>Nghỉ</span>
-                                                  </>
+                                                  <i className="fa fa-calendar-check" style={{ fontSize: '1.2rem' }}></i>
                                                 )}
                                               </div>
                                             ) : isSelected ? (
@@ -1602,7 +1792,8 @@ export default function OutdoorCheckupPage() {
                                                 <div style={{ fontSize: '0.7rem', marginTop: '2px' }}>Đã chọn</div>
                                               </>
                                             ) : (
-                                              <span style={{ fontSize: '0.85rem' }}>Trống</span>
+                                              // Empty slot - no text, just show empty button
+                                              <span></span>
                                             )}
                                           </button>
                                         </td>
@@ -1669,22 +1860,6 @@ export default function OutdoorCheckupPage() {
                                     <i className="fa fa-clock"></i>
                                   </button>
                                   <span style={{ fontSize: '0.85rem' }}>⏳ Đang giữ chỗ</span>
-                                </div>
-                              </div>
-                              <div className="col-md-6 col-lg-3">
-                                <div className="d-flex align-items-center gap-2">
-                                  <button 
-                                    className="btn btn-sm btn-warning" 
-                                    disabled 
-                                    style={{ 
-                                      minWidth: '70px', 
-                                      minHeight: '35px',
-                                      background: 'linear-gradient(135deg, #ffc107 0%, #e0a800 100%)'
-                                    }}
-                                  >
-                                    <i className="fa fa-umbrella-beach"></i>
-                                  </button>
-                                  <span style={{ fontSize: '0.85rem' }}>🏖️ Nghỉ phép</span>
                                 </div>
                               </div>
                               <div className="col-md-6 col-lg-3">
@@ -1778,8 +1953,10 @@ export default function OutdoorCheckupPage() {
                       onClick={async () => {
                         setStep('datetime');
                         setErrorMessage('');
-                        // Clear selected slot when back to datetime (user can select new slot)
-                        // Don't clear holdAppointmentId - will be handled when selecting new slot
+                        // Load my appointments first to update confirmedAppointmentIds
+                        if (isAuthenticated()) {
+                          await loadMyAppointments();
+                        }
                         // Reload busy schedules when back to datetime step
                         if (selectedDoctor) {
                           await loadBusySchedules(Number(selectedDoctor));
@@ -1940,6 +2117,11 @@ export default function OutdoorCheckupPage() {
                             
                             // Go back to datetime step
                             setStep('datetime');
+                            
+                            // Load my appointments first to update confirmedAppointmentIds
+                            if (isAuthenticated()) {
+                              await loadMyAppointments();
+                            }
                             
                             // Reload busy schedules
                             if (selectedDoctor) {

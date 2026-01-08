@@ -13,6 +13,7 @@ export default function PatientsPage() {
   const [selectedPatient, setSelectedPatient] = useState<any>(null);
   const [showPatientModal, setShowPatientModal] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('');
+  const [searchTerm, setSearchTerm] = useState<string>('');
 
   useEffect(() => {
     loadDoctorId();
@@ -144,27 +145,64 @@ export default function PatientsPage() {
         </button>
       </div>
 
-      {/* Filter */}
+      {/* Filter and Search */}
       <div className="card shadow-sm mb-4">
         <div className="card-body">
           <div className="row g-3">
-            <div className="col-md-4">
-              <label className="form-label">Filter by Status</label>
+            <div className="col-md-3">
+              <label className="form-label">Lọc theo trạng thái</label>
               <select
                 className="form-select"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
               >
-                <option value="">All Status</option>
+                <option value="">Tất cả</option>
                 <option value="PENDING">PENDING</option>
                 <option value="CONFIRMED">CONFIRMED</option>
                 <option value="COMPLETED">COMPLETED</option>
                 <option value="CANCELLED">CANCELLED</option>
               </select>
             </div>
-            <div className="col-md-8 d-flex align-items-end">
+            <div className="col-md-5">
+              <label className="form-label">Tìm kiếm theo ID bệnh nhân</label>
+              <div className="input-group">
+                <span className="input-group-text">
+                  <i className="fa fa-search"></i>
+                </span>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="Nhập ID bệnh nhân..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+                {searchTerm && (
+                  <button
+                    className="btn btn-outline-secondary"
+                    type="button"
+                    onClick={() => setSearchTerm('')}
+                    title="Xóa tìm kiếm"
+                  >
+                    <i className="fa fa-times"></i>
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="col-md-4 d-flex align-items-end">
               <div className="text-muted">
-                Total: <strong>{patients.length}</strong> patients, <strong>{appointments.length}</strong> appointments
+                Tổng số: <strong>{
+                  searchTerm.trim() 
+                    ? patients.filter((p) => 
+                        p.id?.toString().includes(searchTerm.trim()) || 
+                        p.id?.toString() === searchTerm.trim()
+                      ).length 
+                    : patients.length
+                }</strong> bệnh nhân
+                {searchTerm.trim() && (
+                  <span className="ms-2 text-primary">
+                    (đã lọc)
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -183,12 +221,34 @@ export default function PatientsPage() {
                 <span className="visually-hidden">Loading...</span>
               </div>
             </div>
-          ) : patients.length === 0 ? (
-            <div className="text-center py-5">
-              <i className="fa fa-users fa-3x text-muted mb-3"></i>
-              <p className="text-muted">Chưa có bệnh nhân nào</p>
-            </div>
-          ) : (
+          ) : (() => {
+              const filteredPatients = patients.filter((patient) => {
+                if (searchTerm.trim()) {
+                  const searchId = searchTerm.trim();
+                  return patient.id?.toString().includes(searchId) || 
+                         patient.id?.toString() === searchId;
+                }
+                return true;
+              });
+              
+              return filteredPatients.length === 0 ? (
+                <div className="text-center py-5">
+                  <i className="fa fa-search fa-3x text-muted mb-3"></i>
+                  <p className="text-muted">
+                    {searchTerm.trim() 
+                      ? `Không tìm thấy bệnh nhân với ID: ${searchTerm}`
+                      : 'Chưa có bệnh nhân nào'}
+                  </p>
+                  {searchTerm.trim() && (
+                    <button
+                      className="btn btn-outline-primary mt-2"
+                      onClick={() => setSearchTerm('')}
+                    >
+                      <i className="fa fa-times me-2"></i>Xóa bộ lọc
+                    </button>
+                  )}
+                </div>
+              ) : (
             <div className="table-responsive">
               <table className="table table-hover">
                 <thead>
@@ -202,7 +262,7 @@ export default function PatientsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {patients.map((patient) => (
+                  {filteredPatients.map((patient) => (
                     <tr key={patient.id}>
                       <td>#{patient.id}</td>
                       <td>{patient.name || 'N/A'}</td>
@@ -239,86 +299,12 @@ export default function PatientsPage() {
                 </tbody>
               </table>
             </div>
-          )}
+              );
+            })()}
         </div>
       </div>
 
-      {/* Appointments List */}
-      <div className="card shadow-sm">
-        <div className="card-header bg-success text-white">
-          <h5 className="mb-0">Lịch hẹn</h5>
-        </div>
-        <div className="card-body">
-          {isLoading ? (
-            <div className="text-center py-5">
-              <div className="spinner-border text-success" role="status">
-                <span className="visually-hidden">Loading...</span>
-              </div>
-            </div>
-          ) : appointments.length === 0 ? (
-            <div className="text-center py-5">
-              <i className="fa fa-calendar-times fa-3x text-muted mb-3"></i>
-              <p className="text-muted">Không có lịch hẹn nào</p>
-            </div>
-          ) : (
-            <div className="table-responsive">
-              <table className="table table-hover">
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Bệnh nhân</th>
-                    <th>Ngày giờ</th>
-                    <th>Clinic</th>
-                    <th>Status</th>
-                    <th>Thao tác</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {appointments.map((apt) => (
-                    <tr key={apt.id}>
-                      <td>#{apt.id}</td>
-                      <td>{apt.patientName || `Patient #${apt.patientId}`}</td>
-                      <td>
-                        {apt.appointmentTime
-                          ? new Date(apt.appointmentTime).toLocaleString('vi-VN')
-                          : 'N/A'}
-                      </td>
-                      <td>{apt.clinicName || 'N/A'}</td>
-                      <td>
-                        <span className={`badge ${
-                          apt.status === 'CONFIRMED' ? 'bg-info' :
-                          apt.status === 'PENDING' ? 'bg-warning' :
-                          apt.status === 'CHECKED_IN' ? 'bg-primary' :
-                          apt.status === 'IN_PROGRESS' ? 'bg-warning text-dark' :
-                          apt.status === 'REVIEW' ? 'bg-primary' :
-                          apt.status === 'COMPLETED' ? 'bg-success' :
-                          apt.status === 'CANCELLED' || apt.status === 'CANCELLED_BY_PATIENT' || apt.status === 'CANCELLED_BY_DOCTOR' ? 'bg-danger' :
-                          apt.status === 'NO_SHOW' ? 'bg-secondary' :
-                          apt.status === 'REJECTED' ? 'bg-danger' :
-                          apt.status === 'EXPIRED' ? 'bg-secondary' :
-                          'bg-info'
-                        }`}>
-                          {apt.status}
-                        </span>
-                      </td>
-                      <td>
-                        {apt.status !== 'COMPLETED' && apt.status !== 'CANCELLED' && (
-                          <button
-                            className="btn btn-sm btn-success"
-                            onClick={() => handleUpdateAppointmentStatus(apt.id, 'COMPLETED')}
-                          >
-                            <i className="fa fa-check me-1"></i>Hoàn thành
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </div>
+      {/* Appointments List - Hidden, this page is for patients only, not appointments */}
 
       {/* Patient Detail Modal */}
       {showPatientModal && selectedPatient && (
@@ -356,62 +342,57 @@ export default function PatientsPage() {
                     <strong>Email:</strong> {selectedPatient.email || 'N/A'}
                   </div>
                   <div className="col-md-6">
-                    <strong>Tổng lịch hẹn:</strong> {selectedPatient.appointments?.length || 0}
+                    <strong>Tổng lịch hẹn đã hoàn thành:</strong> {
+                      selectedPatient.appointments?.filter((apt: any) => 
+                        apt.status?.toUpperCase() === 'COMPLETED'
+                      ).length || 0
+                    }
                   </div>
                 </div>
                 <hr />
-                <h6 className="mb-3">Lịch sử khám</h6>
+                <h6 className="mb-3">Lịch sử khám đã hoàn thành</h6>
                 {selectedPatient.appointments && selectedPatient.appointments.length > 0 ? (
-                  <div className="table-responsive">
-                    <table className="table table-sm">
-                      <thead>
-                        <tr>
-                          <th>ID</th>
-                          <th>Ngày giờ</th>
-                          <th>Clinic</th>
-                          <th>Status</th>
-                          <th>Thao tác</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selectedPatient.appointments.map((apt: any) => (
-                          <tr key={apt.id}>
-                            <td>#{apt.id}</td>
-                            <td>
-                              {apt.appointmentTime
-                                ? new Date(apt.appointmentTime).toLocaleString('vi-VN')
-                                : 'N/A'}
-                            </td>
-                            <td>{apt.clinicName || 'N/A'}</td>
-                            <td>
-                              <span className={`badge ${
-                                apt.status === 'CONFIRMED' ? 'bg-primary' :
-                                apt.status === 'PENDING' ? 'bg-warning' :
-                                apt.status === 'COMPLETED' ? 'bg-success' :
-                                apt.status === 'CANCELLED' ? 'bg-secondary' :
-                                'bg-info'
-                              }`}>
-                                {apt.status}
-                              </span>
-                            </td>
-                            <td>
-                              {apt.status !== 'COMPLETED' && apt.status !== 'CANCELLED' && (
-                                <button
-                                  className="btn btn-sm btn-success"
-                                  onClick={() => {
-                                    handleUpdateAppointmentStatus(apt.id, 'COMPLETED');
-                                    handleCloseModal();
-                                  }}
-                                >
-                                  <i className="fa fa-check me-1"></i>Hoàn thành
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  (() => {
+                    // Filter only COMPLETED appointments
+                    const completedAppointments = selectedPatient.appointments.filter((apt: any) => 
+                      apt.status?.toUpperCase() === 'COMPLETED'
+                    );
+                    
+                    return completedAppointments.length > 0 ? (
+                      <div className="table-responsive">
+                        <table className="table table-sm">
+                          <thead>
+                            <tr>
+                              <th>ID</th>
+                              <th>Ngày giờ</th>
+                              <th>Clinic</th>
+                              <th>Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {completedAppointments.map((apt: any) => (
+                              <tr key={apt.id}>
+                                <td>#{apt.id}</td>
+                                <td>
+                                  {apt.appointmentTime
+                                    ? new Date(apt.appointmentTime).toLocaleString('vi-VN')
+                                    : 'N/A'}
+                                </td>
+                                <td>{apt.clinicName || 'N/A'}</td>
+                                <td>
+                                  <span className="badge bg-success">
+                                    {apt.status}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p className="text-muted">Chưa có lịch khám nào đã hoàn thành</p>
+                    );
+                  })()
                 ) : (
                   <p className="text-muted">Chưa có lịch hẹn nào</p>
                 )}

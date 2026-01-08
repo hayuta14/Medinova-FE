@@ -14,6 +14,13 @@ export default function OutdoorCheckupPage() {
   const [doctorId, setDoctorId] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [viewMode, setViewMode] = useState<'today' | 'all'>('today');
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [assignReason, setAssignReason] = useState('');
+  const [cancelReason, setCancelReason] = useState('');
+  const [availableDoctors, setAvailableDoctors] = useState<any[]>([]);
+  const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null);
+  const [isLoadingDoctors, setIsLoadingDoctors] = useState(false);
 
   // Get doctor ID from user
   useEffect(() => {
@@ -395,31 +402,7 @@ export default function OutdoorCheckupPage() {
 
   // Cancel confirmed appointment (CONFIRMED → CANCELLED_BY_DOCTOR) - for doctor
   const handleCancelByDoctor = async (id: number | undefined) => {
-    if (!id) return;
-    
-    const reason = prompt('Nhập lý do hủy (nội bộ, chỉ bác sĩ và admin thấy):');
-    if (reason === null) return; // User cancelled
-    
-    if (!confirm('Bạn có chắc chắn muốn hủy lịch hẹn đã xác nhận? Bệnh nhân sẽ nhận được thông báo và có thể chọn slot khác.')) {
-      return;
-    }
-    
-    try {
-      // Call cancel API endpoint
-      await api<AppointmentResponse>({
-        url: `/api/appointments/${id}/cancel`,
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        data: reason ? { reason } : {}
-      });
-      alert('Đã hủy lịch hẹn! Bệnh nhân sẽ nhận được thông báo.');
-      handleRefresh();
-    } catch (error: any) {
-      console.error('Error cancelling appointment:', error);
-      const errorMessage = error?.response?.data?.message || error?.message || 'Có lỗi xảy ra khi hủy lịch hẹn.';
-      setErrorMessage(errorMessage);
-      alert(errorMessage);
-    }
+    handleCancelAppointment(id);
   };
 
   const handleMarkAbsent = async (id: number | undefined) => {
@@ -634,7 +617,7 @@ export default function OutdoorCheckupPage() {
                               </button>
                             </>
                           )}
-                          {/* Cancel button - CONFIRMED → CANCELLED_BY_DOCTOR */}
+                          {/* Cancel and Assign buttons - CONFIRMED → CANCELLED_BY_DOCTOR or ASSIGN */}
                           {apt.status === 'CONFIRMED' && (
                             <>
                               <button
@@ -645,13 +628,30 @@ export default function OutdoorCheckupPage() {
                                 <i className="fa fa-sign-in-alt"></i>
                               </button>
                               <button
+                                className="btn btn-warning"
+                                onClick={() => handleAssignAppointment(apt.id)}
+                                title="Chuyển cho bác sĩ khác"
+                              >
+                                <i className="fa fa-user-md"></i> Chuyển
+                              </button>
+                              <button
                                 className="btn btn-danger"
-                                onClick={() => handleCancelByDoctor(apt.id)}
+                                onClick={() => handleCancelAppointment(apt.id)}
                                 title="Hủy lịch hẹn (bác sĩ)"
                               >
-                                <i className="fa fa-ban"></i>
+                                <i className="fa fa-ban"></i> Hủy
                               </button>
                             </>
+                          )}
+                          {/* Assign button for PENDING appointments */}
+                          {apt.status === 'PENDING' && (
+                            <button
+                              className="btn btn-warning btn-sm ms-1"
+                              onClick={() => handleAssignAppointment(apt.id)}
+                              title="Chuyển cho bác sĩ khác"
+                            >
+                              <i className="fa fa-user-md"></i> Chuyển
+                            </button>
                           )}
                           {/* Start consultation button - CHECKED_IN → IN_PROGRESS */}
                           {apt.status === 'CHECKED_IN' && (

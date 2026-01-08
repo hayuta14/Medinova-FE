@@ -15,7 +15,7 @@ export default function MyAppointmentsPage() {
   const [appointments, setAppointments] = useState<AppointmentResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('COMPLETED'); // Default to COMPLETED only
   const [selectedAppointment, setSelectedAppointment] = useState<AppointmentResponse | null>(null);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [reviewForm, setReviewForm] = useState({
@@ -227,7 +227,8 @@ export default function MyAppointmentsPage() {
           </div>
 
           {/* Status Filter */}
-          <div className="card shadow-sm mb-4">
+          {/* Filter section - Hidden, only show COMPLETED appointments */}
+          {/* <div className="card shadow-sm mb-4">
             <div className="card-body">
               <div className="d-flex gap-2 flex-wrap align-items-center">
                 <label className="mb-0 fw-bold">Lọc theo trạng thái:</label>
@@ -269,7 +270,7 @@ export default function MyAppointmentsPage() {
                 </button>
               </div>
             </div>
-          </div>
+          </div> */}
 
           {errorMessage && (
             <div className="alert alert-danger alert-dismissible fade show" role="alert">
@@ -285,10 +286,10 @@ export default function MyAppointmentsPage() {
 
           {/* Appointments List */}
           <div className="card shadow-sm">
-            <div className="card-header bg-primary text-white">
+            <div className="card-header bg-success text-white">
               <h5 className="mb-0">
-                <i className="fa fa-calendar-check me-2"></i>
-                Danh sách lịch hẹn ({appointments.length})
+                <i className="fa fa-check-circle me-2"></i>
+                Lịch khám đã hoàn thành ({appointments.length})
               </h5>
             </div>
             <div className="card-body">
@@ -303,15 +304,8 @@ export default function MyAppointmentsPage() {
                 <div className="text-center py-5">
                   <i className="fa fa-calendar-times fa-3x text-muted mb-3"></i>
                   <p className="text-muted">
-                    {statusFilter 
-                      ? `Không có lịch hẹn nào với trạng thái "${getStatusText(statusFilter)}"`
-                      : 'Bạn chưa có lịch hẹn nào'}
+                    Bạn chưa có lịch khám nào đã hoàn thành
                   </p>
-                  {!statusFilter && (
-                    <a href="/appointment" className="btn btn-primary">
-                      <i className="fa fa-plus me-2"></i>Đặt lịch khám
-                    </a>
-                  )}
                 </div>
               ) : (
                 <div className="table-responsive">

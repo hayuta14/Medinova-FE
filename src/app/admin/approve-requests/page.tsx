@@ -2,13 +2,13 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { getLeaveRequestManagement } from '@/generated/api/endpoints/leave-request-management/leave-request-management';
-import { getUserManagement } from '@/generated/api/endpoints/user-management/user-management';
-import type { DoctorLeaveRequest, LocalTime } from '@/generated/api/models';
+import { getDoctorManagement } from '@/generated/api/endpoints/doctor-management/doctor-management';
+import type { DoctorLeaveRequest, LocalTime, Doctor } from '@/generated/api/models';
 
 export default function ApproveRequestsPage() {
   const [activeTab, setActiveTab] = useState<'leave' | 'account'>('leave');
   const [leaveRequests, setLeaveRequests] = useState<DoctorLeaveRequest[]>([]);
-  const [accountRequests, setAccountRequests] = useState<any[]>([]);
+  const [accountRequests, setAccountRequests] = useState<Doctor[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -46,28 +46,32 @@ export default function ApproveRequestsPage() {
     }
   }, []);
 
-  // Load account update requests
+  // Load account update requests (doctors with PENDING update requests)
   const loadAccountRequests = useCallback(async () => {
     try {
       setIsLoading(true);
       setErrorMessage('');
-      const userApi = getUserManagement();
-      const response = await userApi.getAllUsers();
+      const doctorApi = getDoctorManagement();
+      const response = await doctorApi.getPendingDoctors();
       
-      // Handle response - could be array directly or wrapped in data
-      const usersData = (response as any)?.data || response;
-      const allUsers = Array.isArray(usersData) ? usersData : [];
+      // Handle response - backend returns { doctors: [...], updateRequests: [...], totalPendingCount: number }
+      const responseData = (response as any)?.data || response;
+      let doctorsList: Doctor[] = [];
       
-      // Filter users with PENDING status (account update requests)
-      const pendingUsers = allUsers.filter((user: any) => 
-        user.status === 'PENDING' || user.status === 'pending'
-      );
+      if (responseData && typeof responseData === 'object') {
+        // If response has doctors array
+        if (responseData.doctors && Array.isArray(responseData.doctors)) {
+          doctorsList = responseData.doctors;
+        } else if (Array.isArray(responseData)) {
+          doctorsList = responseData;
+        }
+      }
       
-      // Sort by creation date (newest first)
-      const sortedRequests = pendingUsers.sort((a: any, b: any) => {
-        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        return dateB - dateA;
+      // Sort by ID (newest first, assuming higher ID = newer)
+      const sortedRequests = doctorsList.sort((a: Doctor, b: Doctor) => {
+        const idA = a.id || 0;
+        const idB = b.id || 0;
+        return idB - idA;
       });
       
       setAccountRequests(sortedRequests);
@@ -130,38 +134,41 @@ export default function ApproveRequestsPage() {
   };
 
   // Handle approve account update request
-  const handleApproveAccount = async (userId: number) => {
-    if (!confirm('Are you sure you want to approve this account update request?')) {
+  const handleApproveAccount = async (doctorId: number | undefined) => {
+    if (!doctorId) return;
+    
+    if (!confirm('Bạn có chắc chắn muốn phê duyệt yêu cầu cập nhật tài khoản này?')) {
       return;
     }
 
     try {
-      // TODO: Implement API call to approve account update
-      // For now, we can update user status to ACTIVE
-      const userApi = getUserManagement();
-      // Note: This might need a different API endpoint for account approval
+      const doctorApi = getDoctorManagement();
+      await doctorApi.updateDoctorStatus(doctorId, { status: 'APPROVED' });
       await loadAccountRequests();
-      alert('Account update request approved successfully!');
+      alert('Phê duyệt yêu cầu cập nhật tài khoản thành công!');
     } catch (error: any) {
       console.error('Error approving account request:', error);
-      const errorMsg = error?.response?.data?.message || error?.message || 'Failed to approve account request. Please try again.';
+      const errorMsg = error?.response?.data?.message || error?.message || 'Không thể phê duyệt yêu cầu. Vui lòng thử lại.';
       alert(errorMsg);
     }
   };
 
   // Handle reject account update request
-  const handleRejectAccount = async (userId: number) => {
-    if (!confirm('Are you sure you want to reject this account update request?')) {
+  const handleRejectAccount = async (doctorId: number | undefined) => {
+    if (!doctorId) return;
+    
+    if (!confirm('Bạn có chắc chắn muốn từ chối yêu cầu cập nhật tài khoản này?')) {
       return;
     }
 
     try {
-      // TODO: Implement API call to reject account update
+      const doctorApi = getDoctorManagement();
+      await doctorApi.updateDoctorStatus(doctorId, { status: 'REJECTED' });
       await loadAccountRequests();
-      alert('Account update request rejected successfully!');
+      alert('Từ chối yêu cầu cập nhật tài khoản thành công!');
     } catch (error: any) {
       console.error('Error rejecting account request:', error);
-      const errorMsg = error?.response?.data?.message || error?.message || 'Failed to reject account request. Please try again.';
+      const errorMsg = error?.response?.data?.message || error?.message || 'Không thể từ chối yêu cầu. Vui lòng thử lại.';
       alert(errorMsg);
     }
   };
@@ -250,6 +257,42 @@ export default function ApproveRequestsPage() {
     }
     
     return `${start} - ${end}`;
+  };
+
+  // Format department name
+  const formatDepartmentName = (doctor: Doctor): string => {
+    const department = (doctor as any).department;
+    if (!department) {
+      return doctor.specialization || 'N/A';
+    }
+    
+    // If department is an object with displayName
+    if (typeof department === 'object' && department.displayName) {
+      return department.displayName;
+    }
+    
+    // If department is a string (enum value), map it to display name
+    const departmentMap: Record<string, string> = {
+      'GENERAL_MEDICINE': 'Nội tổng quát',
+      'PEDIATRICS': 'Nhi',
+      'OBSTETRICS_GYNECOLOGY': 'Sản – Phụ',
+      'SURGERY': 'Ngoại tổng quát',
+      'CARDIOLOGY': 'Tim mạch',
+      'NEUROLOGY': 'Thần kinh',
+      'ORTHOPEDICS': 'Chấn thương chỉnh hình',
+      'ONCOLOGY': 'Ung bướu',
+      'GASTROENTEROLOGY': 'Tiêu hóa',
+      'RESPIRATORY': 'Hô hấp',
+      'NEPHROLOGY': 'Thận',
+      'ENDOCRINOLOGY': 'Nội tiết',
+      'HEMATOLOGY': 'Huyết học',
+      'RHEUMATOLOGY': 'Cơ xương khớp',
+      'DERMATOLOGY': 'Da liễu',
+      'INFECTIOUS_DISEASE': 'Truyền nhiễm',
+    };
+    
+    const deptValue = typeof department === 'string' ? department : department?.toString();
+    return departmentMap[deptValue || ''] || deptValue || 'N/A';
   };
 
   return (
@@ -419,43 +462,60 @@ export default function ApproveRequestsPage() {
                   <thead>
                     <tr>
                       <th>ID</th>
-                      <th>Name</th>
+                      <th>Bác sĩ</th>
                       <th>Email</th>
-                      <th>Role</th>
-                      <th>Status</th>
-                      <th>Requested At</th>
-                      <th>Actions</th>
+                      <th>Khoa</th>
+                      <th>Kinh nghiệm</th>
+                      <th>Phòng khám</th>
+                      <th>Trạng thái</th>
+                      <th>Thao tác</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {accountRequests.map((user) => (
-                      <tr key={user.id}>
-                        <td>{user.id}</td>
-                        <td>{user.name || user.user?.name || 'N/A'}</td>
-                        <td>{user.email || user.user?.email || 'N/A'}</td>
+                    {accountRequests.map((doctor) => (
+                      <tr key={doctor.id}>
+                        <td>{doctor.id}</td>
+                        <td>
+                          <strong>{doctor.user?.fullName || doctor.user?.name || 'N/A'}</strong>
+                          {doctor.bio && (
+                            <div className="text-muted small mt-1" style={{ maxWidth: '200px' }}>
+                              {doctor.bio.length > 50 ? `${doctor.bio.substring(0, 50)}...` : doctor.bio}
+                            </div>
+                          )}
+                        </td>
+                        <td>{doctor.user?.email || 'N/A'}</td>
                         <td>
                           <span className="badge bg-info">
-                            {user.role || user.user?.role || 'N/A'}
+                            {formatDepartmentName(doctor)}
                           </span>
                         </td>
                         <td>
-                          <span className="badge bg-warning">
-                            {user.status || 'PENDING'}
+                          {doctor.experienceYears ? `${doctor.experienceYears} năm` : 'N/A'}
+                        </td>
+                        <td>{doctor.clinic?.name || 'N/A'}</td>
+                        <td>
+                          <span className={`badge ${
+                            doctor.status === 'APPROVED' ? 'bg-success' : 
+                            doctor.status === 'REJECTED' ? 'bg-danger' : 
+                            'bg-warning'
+                          }`}>
+                            {doctor.status || 'PENDING'}
                           </span>
                         </td>
-                        <td>{formatDateTime(user.createdAt || user.user?.createdAt)}</td>
                         <td>
                           <button
                             className="btn btn-sm btn-success me-2"
-                            onClick={() => handleApproveAccount(user.id || user.user?.id)}
+                            onClick={() => handleApproveAccount(doctor.id)}
+                            disabled={doctor.status !== 'PENDING' && doctor.status !== 'pending'}
                           >
-                            <i className="fa fa-check me-1"></i>Approve
+                            <i className="fa fa-check me-1"></i>Phê duyệt
                           </button>
                           <button
                             className="btn btn-sm btn-danger"
-                            onClick={() => handleRejectAccount(user.id || user.user?.id)}
+                            onClick={() => handleRejectAccount(doctor.id)}
+                            disabled={doctor.status !== 'PENDING' && doctor.status !== 'pending'}
                           >
-                            <i className="fa fa-times me-1"></i>Reject
+                            <i className="fa fa-times me-1"></i>Từ chối
                           </button>
                         </td>
                       </tr>

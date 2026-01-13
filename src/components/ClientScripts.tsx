@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useEffect } from 'react';
+import { useEffect } from "react";
 
 declare global {
   interface Window {
@@ -12,21 +12,21 @@ declare global {
 export default function ClientScripts() {
   useEffect(() => {
     // Initialize scripts after component mounts
-    if (typeof window !== 'undefined' && window.jQuery) {
+    if (typeof window !== "undefined" && window.jQuery) {
       const $ = window.jQuery;
 
       // Dropdown on mouse hover
       function toggleNavbarMethod() {
         if ($(window).width() > 992) {
-          $('.navbar .dropdown')
-            .on('mouseover', function () {
-              $('.dropdown-toggle', this).trigger('click');
+          $(".navbar .dropdown")
+            .on("mouseover", function (this: HTMLElement) {
+              $(".dropdown-toggle", this).trigger("click");
             })
-            .on('mouseout', function () {
-              $('.dropdown-toggle', this).trigger('click').blur();
+            .on("mouseout", function (this: HTMLElement) {
+              $(".dropdown-toggle", this).trigger("click").blur();
             });
         } else {
-          $('.navbar .dropdown').off('mouseover').off('mouseout');
+          $(".navbar .dropdown").off("mouseover").off("mouseout");
         }
       }
       toggleNavbarMethod();
@@ -37,57 +37,60 @@ export default function ClientScripts() {
         // Only initialize if datetimepicker is available and elements exist
         if ($.fn.datetimepicker) {
           // Initialize elements with class .date
-          const dateElements = $('.date');
+          const dateElements = $(".date");
           if (dateElements.length > 0) {
             dateElements.datetimepicker({
-              format: 'L',
+              format: "L",
             });
           }
-          
+
           // Initialize elements with class .time
-          const timeElements = $('.time');
+          const timeElements = $(".time");
           if (timeElements.length > 0) {
             timeElements.datetimepicker({
-              format: 'LT',
+              format: "LT",
             });
           }
-          
+
           // Initialize elements with data-toggle="datetimepicker"
           const toggleElements = $('[data-toggle="datetimepicker"]');
           if (toggleElements.length > 0) {
-            toggleElements.each(function() {
+            toggleElements.each(function (this: HTMLElement) {
               const $this = $(this);
               // Only initialize if not already initialized
-              if (!$this.data('DateTimePicker')) {
+              if (!$this.data("DateTimePicker")) {
                 // Ensure parent container has position relative
                 const $parent = $this.parent();
-                if ($parent.length && $parent.css('position') === 'static') {
-                  $parent.css('position', 'relative');
+                if ($parent.length && $parent.css("position") === "static") {
+                  $parent.css("position", "relative");
                 }
                 try {
                   $this.datetimepicker();
                 } catch (error) {
-                  console.warn('Failed to initialize datetimepicker:', error);
+                  console.warn("Failed to initialize datetimepicker:", error);
                 }
               }
             });
           }
         }
       };
-      
+
       // Listen for tempusdominus loaded event
       const handleTempusdominusLoaded = () => {
         // Small delay to ensure everything is ready
         setTimeout(initDateTimePicker, 100);
       };
-      
+
       // Check if already loaded, otherwise wait for event
       let retryInterval: NodeJS.Timeout | null = null;
       if ($.fn.datetimepicker) {
         // Small delay to ensure DOM is ready
         setTimeout(initDateTimePicker, 100);
       } else {
-        window.addEventListener('tempusdominus-loaded', handleTempusdominusLoaded);
+        window.addEventListener(
+          "tempusdominus-loaded",
+          handleTempusdominusLoaded
+        );
         // Also try periodically as fallback
         let retryCount = 0;
         retryInterval = setInterval(() => {
@@ -100,36 +103,43 @@ export default function ClientScripts() {
           }
         }, 100);
       }
-      
+
       // Cleanup
       return () => {
-        window.removeEventListener('tempusdominus-loaded', handleTempusdominusLoaded);
+        window.removeEventListener(
+          "tempusdominus-loaded",
+          handleTempusdominusLoaded
+        );
         if (retryInterval) clearInterval(retryInterval);
       };
 
       // Back to top button
       $(window).scroll(function () {
-        if ($(this).scrollTop() > 100) {
-          $('.back-to-top').fadeIn('slow');
+        const scrollTop = $(window).scrollTop() || 0;
+        if (scrollTop > 100) {
+          $(".back-to-top").fadeIn("slow");
         } else {
-          $('.back-to-top').fadeOut('slow');
+          $(".back-to-top").fadeOut("slow");
         }
       });
-      $('.back-to-top').click(function () {
-        $('html, body').animate({ scrollTop: 0 }, 1500, 'easeInOutExpo');
+      $(".back-to-top").click(function () {
+        $("html, body").animate({ scrollTop: 0 }, 1500, "easeInOutExpo");
         return false;
       });
 
       // Price carousel
       if ($.fn.owlCarousel) {
-        $('.price-carousel').owlCarousel({
+        $(".price-carousel").owlCarousel({
           autoplay: true,
           smartSpeed: 1000,
           margin: 45,
           dots: false,
           loop: true,
           nav: true,
-          navText: ['<i class="bi bi-arrow-left"></i>', '<i class="bi bi-arrow-right"></i>'],
+          navText: [
+            '<i class="bi bi-arrow-left"></i>',
+            '<i class="bi bi-arrow-right"></i>',
+          ],
           responsive: {
             0: {
               items: 1,
@@ -144,14 +154,17 @@ export default function ClientScripts() {
         });
 
         // Team carousel
-        $('.team-carousel, .related-carousel').owlCarousel({
+        $(".team-carousel, .related-carousel").owlCarousel({
           autoplay: true,
           smartSpeed: 1000,
           margin: 45,
           dots: false,
           loop: true,
           nav: true,
-          navText: ['<i class="bi bi-arrow-left"></i>', '<i class="bi bi-arrow-right"></i>'],
+          navText: [
+            '<i class="bi bi-arrow-left"></i>',
+            '<i class="bi bi-arrow-right"></i>',
+          ],
           responsive: {
             0: {
               items: 1,
@@ -163,7 +176,7 @@ export default function ClientScripts() {
         });
 
         // Testimonials carousel
-        $('.testimonial-carousel').owlCarousel({
+        $(".testimonial-carousel").owlCarousel({
           autoplay: true,
           smartSpeed: 1000,
           items: 1,
@@ -176,4 +189,3 @@ export default function ClientScripts() {
 
   return null;
 }
-

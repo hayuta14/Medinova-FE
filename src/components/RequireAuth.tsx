@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { isAuthenticated, getToken, removeToken } from '@/utils/auth';
-import { getAuthentication } from '@/generated/api/endpoints/authentication/authentication';
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { isAuthenticated, getToken, removeToken } from "@/utils/auth";
+import { getAuthentication } from "@/generated/api/endpoints/authentication/authentication";
 
 interface RequireAuthProps {
   children: React.ReactNode;
@@ -14,7 +14,10 @@ interface RequireAuthProps {
  * Component wrapper để bảo vệ các trang cần authentication
  * Sẽ validate token với server và redirect về login nếu token không hợp lệ hoặc hết hạn
  */
-export default function RequireAuth({ children, redirectTo = '/login' }: RequireAuthProps) {
+export default function RequireAuth({
+  children,
+  redirectTo = "/login",
+}: RequireAuthProps) {
   const router = useRouter();
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
@@ -22,7 +25,7 @@ export default function RequireAuth({ children, redirectTo = '/login' }: Require
   useEffect(() => {
     // Validate token với server
     const validateToken = async () => {
-      if (typeof window === 'undefined') {
+      if (typeof window === "undefined") {
         return;
       }
 
@@ -42,8 +45,8 @@ export default function RequireAuth({ children, redirectTo = '/login' }: Require
         const authApi = getAuthentication();
         const response = await authApi.validateToken();
 
-        // Kiểm tra response từ API
-        const validationData = response.data || response;
+        // API function already extracts response.data, so response is the data itself
+        const validationData = (response as any)?.data || response;
         const isValid = validationData.valid !== false; // Mặc định là true nếu không có field valid
         const isExpired = validationData.expired === true;
 
@@ -61,7 +64,7 @@ export default function RequireAuth({ children, redirectTo = '/login' }: Require
         setIsChecking(false);
       } catch (error: any) {
         // Nếu API trả về lỗi (401, 403, etc.), token không hợp lệ
-        console.error('Token validation error:', error);
+        console.error("Token validation error:", error);
         removeToken();
         setIsAuthorized(false);
         setIsChecking(false);
@@ -75,7 +78,10 @@ export default function RequireAuth({ children, redirectTo = '/login' }: Require
   // Hiển thị loading hoặc không hiển thị gì khi đang check
   if (isChecking) {
     return (
-      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '100vh' }}>
+      <div
+        className="d-flex justify-content-center align-items-center"
+        style={{ minHeight: "100vh" }}
+      >
         <div className="spinner-border text-primary" role="status">
           <span className="visually-hidden">Loading...</span>
         </div>
@@ -90,4 +96,3 @@ export default function RequireAuth({ children, redirectTo = '/login' }: Require
 
   return <>{children}</>;
 }
-

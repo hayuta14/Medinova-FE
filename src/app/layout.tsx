@@ -1,12 +1,12 @@
-import type { Metadata } from 'next';
-import Script from 'next/script';
-import './globals.css';
-import ClientScripts from '@/components/ClientScripts';
-import MomentScripts from '@/components/MomentScripts';
+import type { Metadata } from "next";
+import "./globals.css";
+import ClientScripts from "@/components/ClientScripts";
+import MomentScripts from "@/components/MomentScripts";
+import ScriptLoader from "@/components/ScriptLoader";
 
 export const metadata: Metadata = {
-  title: 'MEDINOVA - Hospital Website Template',
-  description: 'Best Healthcare Solution In Your City',
+  title: "MEDINOVA - Hospital Website Template",
+  description: "Best Healthcare Solution In Your City",
 };
 
 export default function RootLayout({
@@ -31,22 +31,20 @@ export default function RootLayout({
           rel="stylesheet"
         />
         <link href="/css/bootstrap.min.css" rel="stylesheet" />
-        <link href="/lib/owlcarousel/assets/owl.carousel.min.css" rel="stylesheet" />
-        <link href="/lib/tempusdominus/css/tempusdominus-bootstrap-4.min.css" rel="stylesheet" />
+        <link
+          href="/lib/owlcarousel/assets/owl.carousel.min.css"
+          rel="stylesheet"
+        />
+        <link
+          href="/lib/tempusdominus/css/tempusdominus-bootstrap-4.min.css"
+          rel="stylesheet"
+        />
         <link href="/css/style.css" rel="stylesheet" />
       </head>
       <body suppressHydrationWarning>
         {children}
-        <Script src="https://code.jquery.com/jquery-3.4.1.min.js" strategy="beforeInteractive" />
-        <Script
-          src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0/dist/js/bootstrap.bundle.min.js"
-          strategy="afterInteractive"
-        />
-        <Script src="/lib/easing/easing.min.js" strategy="afterInteractive" />
-        <Script src="/lib/waypoints/waypoints.min.js" strategy="afterInteractive" />
-        <Script src="/lib/owlcarousel/owl.carousel.min.js" strategy="afterInteractive" />
+        <ScriptLoader />
         <MomentScripts />
-        <Script src="/js/main.js" strategy="afterInteractive" />
         <ClientScripts />
       </body>
     </html>

@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { getAppointmentManagement } from '@/generated/api/endpoints/appointment-management/appointment-management';
+import { useState, useEffect } from "react";
+import { getAppointmentManagement } from "@/generated/api/endpoints/appointment-management/appointment-management";
 
 export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>("");
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
@@ -20,10 +20,14 @@ export default function AppointmentsPage() {
     try {
       setIsLoading(true);
       const appointmentApi = getAppointmentManagement();
-      const response = await appointmentApi.getAllAppointments(statusFilter || undefined, currentPage, pageSize);
-      
+      const response = await appointmentApi.getAllAppointments({
+        status: statusFilter || undefined,
+        page: currentPage,
+        size: pageSize,
+      });
+
       const data = (response as any)?.data || response;
-      if (data && typeof data === 'object' && 'content' in data) {
+      if (data && typeof data === "object" && "content" in data) {
         setAppointments(data.content || []);
         setTotalPages(data.totalPages || 0);
         setTotalElements(data.totalElements || 0);
@@ -31,7 +35,7 @@ export default function AppointmentsPage() {
         setAppointments(Array.isArray(data) ? data : []);
       }
     } catch (error: any) {
-      console.error('Error loading appointments:', error);
+      console.error("Error loading appointments:", error);
       setAppointments([]);
     } finally {
       setIsLoading(false);
@@ -40,30 +44,30 @@ export default function AppointmentsPage() {
 
   const getStatusBadgeClass = (status: string) => {
     switch (status?.toUpperCase()) {
-      case 'CONFIRMED':
-        return 'bg-info';
-      case 'PENDING':
-        return 'bg-warning';
-      case 'CHECKED_IN':
-        return 'bg-primary';
-      case 'IN_PROGRESS':
-        return 'bg-warning text-dark';
-      case 'REVIEW':
-        return 'bg-primary';
-      case 'COMPLETED':
-        return 'bg-success';
-      case 'CANCELLED':
-      case 'CANCELLED_BY_PATIENT':
-      case 'CANCELLED_BY_DOCTOR':
-        return 'bg-danger';
-      case 'NO_SHOW':
-        return 'bg-secondary';
-      case 'REJECTED':
-        return 'bg-danger';
-      case 'EXPIRED':
-        return 'bg-secondary';
+      case "CONFIRMED":
+        return "bg-info";
+      case "PENDING":
+        return "bg-warning";
+      case "CHECKED_IN":
+        return "bg-primary";
+      case "IN_PROGRESS":
+        return "bg-warning text-dark";
+      case "REVIEW":
+        return "bg-primary";
+      case "COMPLETED":
+        return "bg-success";
+      case "CANCELLED":
+      case "CANCELLED_BY_PATIENT":
+      case "CANCELLED_BY_DOCTOR":
+        return "bg-danger";
+      case "NO_SHOW":
+        return "bg-secondary";
+      case "REJECTED":
+        return "bg-danger";
+      case "EXPIRED":
+        return "bg-secondary";
       default:
-        return 'bg-info';
+        return "bg-info";
     }
   };
 
@@ -71,7 +75,10 @@ export default function AppointmentsPage() {
     <div>
       <div className="d-flex justify-content-between align-items-center mb-4">
         <h2 className="mb-0">Appointments Management</h2>
-        <button className="btn btn-outline-primary btn-sm" onClick={loadAppointments}>
+        <button
+          className="btn btn-outline-primary btn-sm"
+          onClick={loadAppointments}
+        >
           <i className="fa fa-sync-alt me-1"></i>Refresh
         </button>
       </div>
@@ -138,16 +145,22 @@ export default function AppointmentsPage() {
                     {appointments.map((apt) => (
                       <tr key={apt.id}>
                         <td>#{apt.id}</td>
-                        <td>{apt.patientName || 'N/A'}</td>
+                        <td>{apt.patientName || "N/A"}</td>
                         <td>{apt.doctorName || `Doctor ${apt.doctorId}`}</td>
-                        <td>{apt.clinicName || 'N/A'}</td>
+                        <td>{apt.clinicName || "N/A"}</td>
                         <td>
                           {apt.appointmentTime
-                            ? new Date(apt.appointmentTime).toLocaleString('vi-VN')
-                            : 'N/A'}
+                            ? new Date(apt.appointmentTime).toLocaleString(
+                                "vi-VN"
+                              )
+                            : "N/A"}
                         </td>
                         <td>
-                          <span className={`badge ${getStatusBadgeClass(apt.status)}`}>
+                          <span
+                            className={`badge ${getStatusBadgeClass(
+                              apt.status
+                            )}`}
+                          >
                             {apt.status}
                           </span>
                         </td>
@@ -161,7 +174,11 @@ export default function AppointmentsPage() {
               {totalPages > 1 && (
                 <nav aria-label="Page navigation" className="mt-4">
                   <ul className="pagination justify-content-center">
-                    <li className={`page-item ${currentPage === 0 ? 'disabled' : ''}`}>
+                    <li
+                      className={`page-item ${
+                        currentPage === 0 ? "disabled" : ""
+                      }`}
+                    >
                       <button
                         className="page-link"
                         onClick={() => setCurrentPage(currentPage - 1)}
@@ -170,20 +187,28 @@ export default function AppointmentsPage() {
                         Previous
                       </button>
                     </li>
-                    {Array.from({ length: totalPages }, (_, i) => i).map((page) => (
-                      <li
-                        key={page}
-                        className={`page-item ${currentPage === page ? 'active' : ''}`}
-                      >
-                        <button
-                          className="page-link"
-                          onClick={() => setCurrentPage(page)}
+                    {Array.from({ length: totalPages }, (_, i) => i).map(
+                      (page) => (
+                        <li
+                          key={page}
+                          className={`page-item ${
+                            currentPage === page ? "active" : ""
+                          }`}
                         >
-                          {page + 1}
-                        </button>
-                      </li>
-                    ))}
-                    <li className={`page-item ${currentPage >= totalPages - 1 ? 'disabled' : ''}`}>
+                          <button
+                            className="page-link"
+                            onClick={() => setCurrentPage(page)}
+                          >
+                            {page + 1}
+                          </button>
+                        </li>
+                      )
+                    )}
+                    <li
+                      className={`page-item ${
+                        currentPage >= totalPages - 1 ? "disabled" : ""
+                      }`}
+                    >
                       <button
                         className="page-link"
                         onClick={() => setCurrentPage(currentPage + 1)}
@@ -202,4 +227,3 @@ export default function AppointmentsPage() {
     </div>
   );
 }
-

@@ -1,23 +1,23 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import Image from 'next/image';
-import Link from 'next/link';
-import Topbar from '@/components/Topbar';
-import Navbar from '@/components/Navbar';
-import Footer from '@/components/Footer';
-import BackToTop from '@/components/BackToTop';
-import { getClinicManagement } from '@/generated/api/endpoints/clinic-management/clinic-management';
-import { getDoctorManagement } from '@/generated/api/endpoints/doctor-management/doctor-management';
-import { isAuthenticated } from '@/utils/auth';
+import { useState, useEffect } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import Topbar from "@/components/Topbar";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
+import BackToTop from "@/components/BackToTop";
+import { getClinicManagement } from "@/generated/api/endpoints/clinic-management/clinic-management";
+import { getDoctorManagement } from "@/generated/api/endpoints/doctor-management/doctor-management";
+import { isAuthenticated } from "@/utils/auth";
 
 const SPECIALIZATIONS = [
-  { value: 'Emergency Care', label: 'Cấp cứu' },
-  { value: 'Operation & Surgery', label: 'Phẫu thuật' },
-  { value: 'Outdoor Checkup', label: 'Khám ngoại trú' },
-  { value: 'Ambulance Service', label: 'Dịch vụ xe cứu thương' },
-  { value: 'Medicine & Pharmacy', label: 'Thuốc & Dược phẩm' },
-  { value: 'Blood Testing', label: 'Xét nghiệm máu' },
+  { value: "Emergency Care", label: "Cấp cứu" },
+  { value: "Operation & Surgery", label: "Phẫu thuật" },
+  { value: "Outdoor Checkup", label: "Khám ngoại trú" },
+  { value: "Ambulance Service", label: "Dịch vụ xe cứu thương" },
+  { value: "Medicine & Pharmacy", label: "Thuốc & Dược phẩm" },
+  { value: "Blood Testing", label: "Xét nghiệm máu" },
 ];
 
 export default function Search() {
@@ -25,19 +25,20 @@ export default function Search() {
   const [doctors, setDoctors] = useState<any[]>([]);
   const [filteredDoctors, setFilteredDoctors] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedClinicId, setSelectedClinicId] = useState<string>('');
-  const [selectedSpecialization, setSelectedSpecialization] = useState<string>('');
-  const [keyword, setKeyword] = useState<string>('');
+  const [selectedClinicId, setSelectedClinicId] = useState<string>("");
+  const [selectedSpecialization, setSelectedSpecialization] =
+    useState<string>("");
+  const [keyword, setKeyword] = useState<string>("");
   const [selectedDoctor, setSelectedDoctor] = useState<any>(null);
   const [showDoctorDetail, setShowDoctorDetail] = useState(false);
   const [showBookingModal, setShowBookingModal] = useState(false);
-  const [selectedDate, setSelectedDate] = useState<string>('');
-  const [selectedTime, setSelectedTime] = useState<string>('');
+  const [selectedDate, setSelectedDate] = useState<string>("");
+  const [selectedTime, setSelectedTime] = useState<string>("");
   const [bookingForm, setBookingForm] = useState({
-    name: '',
-    phone: '',
-    email: '',
-    reason: '',
+    name: "",
+    phone: "",
+    email: "",
+    reason: "",
   });
 
   useEffect(() => {
@@ -54,7 +55,7 @@ export default function Search() {
       const clinicsData = Array.isArray(response) ? response : [];
       setClinics(clinicsData);
     } catch (error: any) {
-      console.error('Error loading clinics:', error);
+      console.error("Error loading clinics:", error);
       setClinics([]);
     }
   };
@@ -64,12 +65,14 @@ export default function Search() {
       setIsLoading(true);
       const doctorApi = getDoctorManagement();
       const response = await doctorApi.getAllDoctors();
-      const doctorsData = response.data || response;
+      // API function already extracts response.data, so response is the data itself
+      const doctorsData =
+        (response as any)?.data || (response as any)?.content || response;
       const allDoctors = Array.isArray(doctorsData) ? doctorsData : [];
       setDoctors(allDoctors);
       setFilteredDoctors(allDoctors);
     } catch (error: any) {
-      console.error('Error loading doctors:', error);
+      console.error("Error loading doctors:", error);
       setDoctors([]);
       setFilteredDoctors([]);
     } finally {
@@ -81,51 +84,63 @@ export default function Search() {
     try {
       setIsLoading(true);
       const doctorApi = getDoctorManagement();
-      
+
       let doctorsData: any[] = [];
-      
+
       if (selectedClinicId) {
         // Nếu chọn clinic, lấy doctors theo clinic
-        const response = await doctorApi.getDoctorsByClinic(Number(selectedClinicId));
-        doctorsData = Array.isArray(response) ? response : (Array.isArray(response.data) ? response.data : []);
+        const response = await doctorApi.getDoctorsByClinic(
+          Number(selectedClinicId)
+        );
+        // API function already extracts response.data, so response is the data itself
+        doctorsData = Array.isArray(response)
+          ? response
+          : Array.isArray((response as any)?.data)
+          ? (response as any).data
+          : [];
       } else {
         // Nếu không chọn clinic, lấy tất cả doctors
         const response = await doctorApi.getAllDoctors();
-        doctorsData = response.data || response;
+        // API function already extracts response.data, so response is the data itself
+        doctorsData =
+          (response as any)?.data || (response as any)?.content || response;
         doctorsData = Array.isArray(doctorsData) ? doctorsData : [];
       }
-      
+
       // Filter theo chuyên khoa
       if (selectedSpecialization) {
-        doctorsData = doctorsData.filter((doctor) => 
-          doctor.specialization === selectedSpecialization
+        doctorsData = doctorsData.filter(
+          (doctor) => doctor.specialization === selectedSpecialization
         );
       }
-      
+
       // Filter theo keyword nếu có
       if (keyword.trim()) {
         const keywordLower = keyword.toLowerCase().trim();
         doctorsData = doctorsData.filter((doctor) => {
-          const fullName = doctor.user?.fullName?.toLowerCase() || '';
-          const specialization = doctor.specialization?.toLowerCase() || '';
-          const email = doctor.user?.email?.toLowerCase() || '';
-          const bio = doctor.bio?.toLowerCase() || '';
-          
-          return fullName.includes(keywordLower) || 
-                 specialization.includes(keywordLower) ||
-                 email.includes(keywordLower) ||
-                 bio.includes(keywordLower);
+          const fullName = doctor.user?.fullName?.toLowerCase() || "";
+          const specialization = doctor.specialization?.toLowerCase() || "";
+          const email = doctor.user?.email?.toLowerCase() || "";
+          const bio = doctor.bio?.toLowerCase() || "";
+
+          return (
+            fullName.includes(keywordLower) ||
+            specialization.includes(keywordLower) ||
+            email.includes(keywordLower) ||
+            bio.includes(keywordLower)
+          );
         });
       }
-      
+
       // Chỉ hiển thị bác sĩ đã được duyệt
-      doctorsData = doctorsData.filter((doctor) => 
-        doctor.user?.status === 'APPROVED' || doctor.status === 'APPROVED'
+      doctorsData = doctorsData.filter(
+        (doctor) =>
+          doctor.user?.status === "APPROVED" || doctor.status === "APPROVED"
       );
-      
+
       setFilteredDoctors(doctorsData);
     } catch (error: any) {
-      console.error('Error searching doctors:', error);
+      console.error("Error searching doctors:", error);
       setFilteredDoctors([]);
     } finally {
       setIsLoading(false);
@@ -147,7 +162,7 @@ export default function Search() {
     // Tạo danh sách giờ khám từ 8h đến 17h
     const slots = [];
     for (let hour = 8; hour <= 17; hour++) {
-      slots.push(`${hour.toString().padStart(2, '0')}:00`);
+      slots.push(`${hour.toString().padStart(2, "0")}:00`);
     }
     return slots;
   };
@@ -160,17 +175,31 @@ export default function Search() {
       const date = new Date(today);
       date.setDate(today.getDate() + i);
       dates.push({
-        value: date.toISOString().split('T')[0],
-        label: date.toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' }),
-        fullLabel: date.toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
+        value: date.toISOString().split("T")[0],
+        label: date.toLocaleDateString("vi-VN", {
+          weekday: "short",
+          day: "2-digit",
+          month: "2-digit",
+        }),
+        fullLabel: date.toLocaleDateString("vi-VN", {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        }),
       });
     }
     return dates;
   };
 
   const handleBookingSubmit = async () => {
-    if (!selectedDate || !selectedTime || !bookingForm.name || !bookingForm.phone) {
-      alert('Vui lòng điền đầy đủ thông tin!');
+    if (
+      !selectedDate ||
+      !selectedTime ||
+      !bookingForm.name ||
+      !bookingForm.phone
+    ) {
+      alert("Vui lòng điền đầy đủ thông tin!");
       return;
     }
 
@@ -186,20 +215,20 @@ export default function Search() {
       //   reason: bookingForm.reason,
       // });
 
-      alert('Đặt lịch thành công! Chúng tôi sẽ liên hệ với bạn sớm nhất.');
+      alert("Đặt lịch thành công! Chúng tôi sẽ liên hệ với bạn sớm nhất.");
       setShowBookingModal(false);
       setSelectedDoctor(null);
-      setSelectedDate('');
-      setSelectedTime('');
-      setBookingForm({ name: '', phone: '', email: '', reason: '' });
+      setSelectedDate("");
+      setSelectedTime("");
+      setBookingForm({ name: "", phone: "", email: "", reason: "" });
     } catch (error: any) {
-      console.error('Error booking appointment:', error);
-      alert('Có lỗi xảy ra khi đặt lịch. Vui lòng thử lại!');
+      console.error("Error booking appointment:", error);
+      alert("Có lỗi xảy ra khi đặt lịch. Vui lòng thử lại!");
     }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
+    if (e.key === "Enter") {
       handleSearch();
     }
   };
@@ -212,22 +241,26 @@ export default function Search() {
       {/* Search Start */}
       <div className="container-fluid pt-5">
         <div className="container">
-          <div className="text-center mx-auto mb-5" style={{ maxWidth: '500px' }}>
+          <div
+            className="text-center mx-auto mb-5"
+            style={{ maxWidth: "500px" }}
+          >
             <h5 className="d-inline-block text-primary text-uppercase border-bottom border-5">
               Find A Doctor
             </h5>
             <h1 className="display-4 mb-4">Find A Healthcare Professionals</h1>
             <h5 className="fw-normal">
-              Duo ipsum erat stet dolor sea ut nonumy tempor. Tempor duo lorem eos sit sed ipsum
-              takimata ipsum sit est. Ipsum ea voluptua ipsum sit justo
+              Duo ipsum erat stet dolor sea ut nonumy tempor. Tempor duo lorem
+              eos sit sed ipsum takimata ipsum sit est. Ipsum ea voluptua ipsum
+              sit justo
             </h5>
           </div>
-          <div className="mx-auto" style={{ width: '100%', maxWidth: '800px' }}>
+          <div className="mx-auto" style={{ width: "100%", maxWidth: "800px" }}>
             <div className="row g-2">
               <div className="col-md-3">
-                <select 
-                  className="form-select border-primary" 
-                  style={{ height: '60px' }}
+                <select
+                  className="form-select border-primary"
+                  style={{ height: "60px" }}
                   value={selectedClinicId}
                   onChange={(e) => setSelectedClinicId(e.target.value)}
                 >
@@ -240,9 +273,9 @@ export default function Search() {
                 </select>
               </div>
               <div className="col-md-3">
-                <select 
-                  className="form-select border-primary" 
-                  style={{ height: '60px' }}
+                <select
+                  className="form-select border-primary"
+                  style={{ height: "60px" }}
                   value={selectedSpecialization}
                   onChange={(e) => setSelectedSpecialization(e.target.value)}
                 >
@@ -255,25 +288,28 @@ export default function Search() {
                 </select>
               </div>
               <div className="col-md-4">
-                <input 
-                  type="text" 
-                  className="form-control border-primary h-100" 
-                  style={{ height: '60px' }}
-                  placeholder="Tìm theo tên, email..." 
+                <input
+                  type="text"
+                  className="form-control border-primary h-100"
+                  style={{ height: "60px" }}
+                  placeholder="Tìm theo tên, email..."
                   value={keyword}
                   onChange={(e) => setKeyword(e.target.value)}
                   onKeyPress={handleKeyPress}
                 />
               </div>
               <div className="col-md-2">
-                <button 
+                <button
                   className="btn btn-dark border-0 w-100 h-100"
-                  style={{ height: '60px' }}
+                  style={{ height: "60px" }}
                   onClick={handleSearch}
                   disabled={isLoading}
                 >
                   {isLoading ? (
-                    <span className="spinner-border spinner-border-sm" role="status"></span>
+                    <span
+                      className="spinner-border spinner-border-sm"
+                      role="status"
+                    ></span>
                   ) : (
                     <>
                       <i className="fa fa-search me-1"></i>
@@ -293,7 +329,11 @@ export default function Search() {
         <div className="container">
           {isLoading ? (
             <div className="text-center py-5">
-              <div className="spinner-border text-primary" role="status" style={{ width: '3rem', height: '3rem' }}>
+              <div
+                className="spinner-border text-primary"
+                role="status"
+                style={{ width: "3rem", height: "3rem" }}
+              >
                 <span className="visually-hidden">Loading...</span>
               </div>
               <p className="mt-3">Đang tìm kiếm bác sĩ...</p>
@@ -302,7 +342,9 @@ export default function Search() {
             <div className="text-center py-5">
               <i className="fa fa-user-md fa-3x text-muted mb-3"></i>
               <p className="text-muted">Không tìm thấy bác sĩ nào</p>
-              <p className="text-muted">Vui lòng thử lại với từ khóa hoặc cơ sở khác</p>
+              <p className="text-muted">
+                Vui lòng thử lại với từ khóa hoặc cơ sở khác
+              </p>
             </div>
           ) : (
             <>
@@ -314,20 +356,22 @@ export default function Search() {
                         <div className="col-md-4">
                           <Image
                             src={`/img/team-${((doctor.id || 0) % 3) + 1}.jpg`}
-                            alt={doctor.user?.fullName || 'Doctor'}
+                            alt={doctor.user?.fullName || "Doctor"}
                             width={200}
                             height={250}
                             className="img-fluid w-100 h-100"
-                            style={{ objectFit: 'cover' }}
+                            style={{ objectFit: "cover" }}
                           />
                         </div>
                         <div className="col-md-8">
                           <div className="card-body d-flex flex-column h-100">
                             <div>
-                              <h5 className="card-title mb-1">{doctor.user?.fullName || 'N/A'}</h5>
+                              <h5 className="card-title mb-1">
+                                {doctor.user?.fullName || "N/A"}
+                              </h5>
                               <h6 className="text-primary mb-2">
                                 <i className="fa fa-stethoscope me-1"></i>
-                                {doctor.specialization || 'Chưa có chuyên khoa'}
+                                {doctor.specialization || "Chưa có chuyên khoa"}
                               </h6>
                               {doctor.clinic && (
                                 <p className="text-muted small mb-1">
@@ -342,12 +386,15 @@ export default function Search() {
                                 </p>
                               )}
                               {doctor.bio && (
-                                <p className="card-text small text-muted mt-2" style={{ 
-                                  display: '-webkit-box',
-                                  WebkitLineClamp: 2,
-                                  WebkitBoxOrient: 'vertical',
-                                  overflow: 'hidden'
-                                }}>
+                                <p
+                                  className="card-text small text-muted mt-2"
+                                  style={{
+                                    display: "-webkit-box",
+                                    WebkitLineClamp: 2,
+                                    WebkitBoxOrient: "vertical",
+                                    overflow: "hidden",
+                                  }}
+                                >
                                   {doctor.bio}
                                 </p>
                               )}
@@ -377,7 +424,9 @@ export default function Search() {
               </div>
               {filteredDoctors.length > 0 && (
                 <div className="col-12 text-center mt-4">
-                  <p className="text-muted">Tìm thấy {filteredDoctors.length} bác sĩ</p>
+                  <p className="text-muted">
+                    Tìm thấy {filteredDoctors.length} bác sĩ
+                  </p>
                 </div>
               )}
             </>
@@ -388,7 +437,11 @@ export default function Search() {
 
       {/* Doctor Detail Modal */}
       {showDoctorDetail && selectedDoctor && (
-        <div className="modal fade show" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex={-1}>
+        <div
+          className="modal fade show"
+          style={{ display: "block", backgroundColor: "rgba(0,0,0,0.5)" }}
+          tabIndex={-1}
+        >
           <div className="modal-dialog modal-lg">
             <div className="modal-content">
               <div className="modal-header bg-primary text-white">
@@ -409,12 +462,14 @@ export default function Search() {
                 <div className="row">
                   <div className="col-md-4 text-center">
                     <Image
-                      src={`/img/team-${((selectedDoctor.id || 0) % 3) + 1}.jpg`}
-                      alt={selectedDoctor.user?.fullName || 'Doctor'}
+                      src={`/img/team-${
+                        ((selectedDoctor.id || 0) % 3) + 1
+                      }.jpg`}
+                      alt={selectedDoctor.user?.fullName || "Doctor"}
                       width={200}
                       height={250}
                       className="img-fluid rounded mb-3"
-                      style={{ objectFit: 'cover' }}
+                      style={{ objectFit: "cover" }}
                     />
                     <button
                       className="btn btn-primary w-100"
@@ -425,12 +480,12 @@ export default function Search() {
                     </button>
                   </div>
                   <div className="col-md-8">
-                    <h4>{selectedDoctor.user?.fullName || 'N/A'}</h4>
+                    <h4>{selectedDoctor.user?.fullName || "N/A"}</h4>
                     <h6 className="text-primary mb-3">
                       <i className="fa fa-stethoscope me-2"></i>
-                      {selectedDoctor.specialization || 'Chưa có chuyên khoa'}
+                      {selectedDoctor.specialization || "Chưa có chuyên khoa"}
                     </h6>
-                    
+
                     <div className="mb-3">
                       <h6 className="text-muted mb-2">Thông tin</h6>
                       {selectedDoctor.clinic && (
@@ -442,13 +497,15 @@ export default function Search() {
                       {selectedDoctor.experienceYears && (
                         <p className="mb-2">
                           <i className="fa fa-calendar me-2 text-primary"></i>
-                          <strong>Kinh nghiệm:</strong> {selectedDoctor.experienceYears} năm
+                          <strong>Kinh nghiệm:</strong>{" "}
+                          {selectedDoctor.experienceYears} năm
                         </p>
                       )}
                       {selectedDoctor.licenseNumber && (
                         <p className="mb-2">
                           <i className="fa fa-certificate me-2 text-primary"></i>
-                          <strong>Số giấy phép:</strong> {selectedDoctor.licenseNumber}
+                          <strong>Số giấy phép:</strong>{" "}
+                          {selectedDoctor.licenseNumber}
                         </p>
                       )}
                       {selectedDoctor.user?.email && (
@@ -460,7 +517,8 @@ export default function Search() {
                       {selectedDoctor.user?.phone && (
                         <p className="mb-2">
                           <i className="fa fa-phone me-2 text-primary"></i>
-                          <strong>Điện thoại:</strong> {selectedDoctor.user.phone}
+                          <strong>Điện thoại:</strong>{" "}
+                          {selectedDoctor.user.phone}
                         </p>
                       )}
                     </div>
@@ -501,21 +559,24 @@ export default function Search() {
 
       {/* Booking Modal */}
       {showBookingModal && selectedDoctor && (
-        <div 
-          className="modal fade show" 
-          style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }} 
+        <div
+          className="modal fade show"
+          style={{ display: "block", backgroundColor: "rgba(0,0,0,0.5)" }}
           tabIndex={-1}
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setShowBookingModal(false);
               setSelectedDoctor(null);
-              setSelectedDate('');
-              setSelectedTime('');
-              setBookingForm({ name: '', phone: '', email: '', reason: '' });
+              setSelectedDate("");
+              setSelectedTime("");
+              setBookingForm({ name: "", phone: "", email: "", reason: "" });
             }
           }}
         >
-          <div className="modal-dialog modal-lg" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="modal-dialog modal-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="modal-content">
               <div className="modal-header bg-success text-white">
                 <h5 className="modal-title">
@@ -528,16 +589,22 @@ export default function Search() {
                   onClick={() => {
                     setShowBookingModal(false);
                     setSelectedDoctor(null);
-                    setSelectedDate('');
-                    setSelectedTime('');
-                    setBookingForm({ name: '', phone: '', email: '', reason: '' });
+                    setSelectedDate("");
+                    setSelectedTime("");
+                    setBookingForm({
+                      name: "",
+                      phone: "",
+                      email: "",
+                      reason: "",
+                    });
                   }}
                 ></button>
               </div>
               <div className="modal-body">
                 <div className="alert alert-info">
                   <i className="fa fa-info-circle me-2"></i>
-                  <strong>Bác sĩ:</strong> {selectedDoctor.user?.fullName} - {selectedDoctor.specialization}
+                  <strong>Bác sĩ:</strong> {selectedDoctor.user?.fullName} -{" "}
+                  {selectedDoctor.specialization}
                 </div>
 
                 <div className="row g-3">
@@ -574,11 +641,12 @@ export default function Search() {
                       disabled={!selectedDate}
                     >
                       <option value="">-- Chọn giờ --</option>
-                      {selectedDate && getAvailableTimeSlots().map((time) => (
-                        <option key={time} value={time}>
-                          {time}
-                        </option>
-                      ))}
+                      {selectedDate &&
+                        getAvailableTimeSlots().map((time) => (
+                          <option key={time} value={time}>
+                            {time}
+                          </option>
+                        ))}
                     </select>
                   </div>
 
@@ -591,7 +659,9 @@ export default function Search() {
                       type="text"
                       className="form-control"
                       value={bookingForm.name}
-                      onChange={(e) => setBookingForm({ ...bookingForm, name: e.target.value })}
+                      onChange={(e) =>
+                        setBookingForm({ ...bookingForm, name: e.target.value })
+                      }
                       placeholder="Nhập họ và tên"
                       required
                     />
@@ -606,7 +676,12 @@ export default function Search() {
                       type="tel"
                       className="form-control"
                       value={bookingForm.phone}
-                      onChange={(e) => setBookingForm({ ...bookingForm, phone: e.target.value })}
+                      onChange={(e) =>
+                        setBookingForm({
+                          ...bookingForm,
+                          phone: e.target.value,
+                        })
+                      }
                       placeholder="Nhập số điện thoại"
                       required
                     />
@@ -621,7 +696,12 @@ export default function Search() {
                       type="email"
                       className="form-control"
                       value={bookingForm.email}
-                      onChange={(e) => setBookingForm({ ...bookingForm, email: e.target.value })}
+                      onChange={(e) =>
+                        setBookingForm({
+                          ...bookingForm,
+                          email: e.target.value,
+                        })
+                      }
                       placeholder="Nhập email (tùy chọn)"
                     />
                   </div>
@@ -635,7 +715,12 @@ export default function Search() {
                       type="text"
                       className="form-control"
                       value={bookingForm.reason}
-                      onChange={(e) => setBookingForm({ ...bookingForm, reason: e.target.value })}
+                      onChange={(e) =>
+                        setBookingForm({
+                          ...bookingForm,
+                          reason: e.target.value,
+                        })
+                      }
                       placeholder="Nhập lý do khám (tùy chọn)"
                     />
                   </div>
@@ -648,9 +733,14 @@ export default function Search() {
                   onClick={() => {
                     setShowBookingModal(false);
                     setSelectedDoctor(null);
-                    setSelectedDate('');
-                    setSelectedTime('');
-                    setBookingForm({ name: '', phone: '', email: '', reason: '' });
+                    setSelectedDate("");
+                    setSelectedTime("");
+                    setBookingForm({
+                      name: "",
+                      phone: "",
+                      email: "",
+                      reason: "",
+                    });
                   }}
                 >
                   Hủy
@@ -674,4 +764,3 @@ export default function Search() {
     </>
   );
 }
-

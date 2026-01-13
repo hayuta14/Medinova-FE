@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { getDoctorManagement } from '@/generated/api/endpoints/doctor-management/doctor-management';
+import { useState, useEffect } from "react";
+import { getDoctorManagement } from "@/generated/api/endpoints/doctor-management/doctor-management";
 
 export default function PendingDoctorsPage() {
   const [pendingDoctors, setPendingDoctors] = useState<any[]>([]);
@@ -17,20 +17,23 @@ export default function PendingDoctorsPage() {
       const doctorApi = getDoctorManagement();
       const response = await doctorApi.getAllDoctors();
 
-      // API có thể trả về data trực tiếp hoặc trong response.data
-      const doctorsData = response.data || response;
+      // API function already extracts response.data, so response is the data itself
+      // Handle both array and object with data/content property
+      const doctorsData =
+        (response as any)?.data || (response as any)?.content || response;
       const allDoctors = Array.isArray(doctorsData) ? doctorsData : [];
-      
+
       // Filter các doctors có status PENDING
-      const pending = allDoctors.filter((doctor: any) => 
-        doctor.user?.status === 'PENDING' || 
-        doctor.user?.status === 'pending' ||
-        (!doctor.user?.status && doctor.user) // Nếu có user nhưng chưa có status
+      const pending = allDoctors.filter(
+        (doctor: any) =>
+          doctor.user?.status === "PENDING" ||
+          doctor.user?.status === "pending" ||
+          (!doctor.user?.status && doctor.user) // Nếu có user nhưng chưa có status
       );
-      
+
       setPendingDoctors(pending);
     } catch (error: any) {
-      console.error('Error loading pending doctors:', error);
+      console.error("Error loading pending doctors:", error);
       setPendingDoctors([]);
     } finally {
       setIsLoading(false);
@@ -41,21 +44,24 @@ export default function PendingDoctorsPage() {
     try {
       const doctorApi = getDoctorManagement();
       // Update doctor status to APPROVED
-      await doctorApi.updateDoctor(id, { 
+      await doctorApi.updateDoctor(id, {
         // Có thể cần thêm các field khác tùy vào UpdateDoctorRequest
       });
       // Reload danh sách
       await loadPendingDoctors();
-      alert('Duyệt bác sĩ thành công!');
+      alert("Duyệt bác sĩ thành công!");
     } catch (error: any) {
-      console.error('Error approving doctor:', error);
-      const errorMessage = error?.response?.data?.message || error?.message || 'Có lỗi xảy ra khi duyệt bác sĩ. Vui lòng thử lại!';
+      console.error("Error approving doctor:", error);
+      const errorMessage =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Có lỗi xảy ra khi duyệt bác sĩ. Vui lòng thử lại!";
       alert(errorMessage);
     }
   };
 
   const handleReject = async (id: number) => {
-    if (!confirm('Bạn có chắc chắn muốn từ chối bác sĩ này?')) {
+    if (!confirm("Bạn có chắc chắn muốn từ chối bác sĩ này?")) {
       return;
     }
 
@@ -65,10 +71,13 @@ export default function PendingDoctorsPage() {
       await doctorApi.deleteDoctor(id);
       // Reload danh sách
       await loadPendingDoctors();
-      alert('Từ chối bác sĩ thành công!');
+      alert("Từ chối bác sĩ thành công!");
     } catch (error: any) {
-      console.error('Error rejecting doctor:', error);
-      const errorMessage = error?.response?.data?.message || error?.message || 'Có lỗi xảy ra khi từ chối bác sĩ. Vui lòng thử lại!';
+      console.error("Error rejecting doctor:", error);
+      const errorMessage =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Có lỗi xảy ra khi từ chối bác sĩ. Vui lòng thử lại!";
       alert(errorMessage);
     }
   };
@@ -107,16 +116,18 @@ export default function PendingDoctorsPage() {
                 <tbody>
                   {pendingDoctors.map((doctor) => (
                     <tr key={doctor.id}>
-                      <td>{doctor.id || 'N/A'}</td>
-                      <td>{doctor.user?.fullName || 'N/A'}</td>
-                      <td>{doctor.specialization || 'N/A'}</td>
-                      <td>{doctor.clinic?.name || 'N/A'}</td>
-                      <td>{doctor.user?.email || 'N/A'}</td>
-                      <td>{doctor.user?.phone || 'N/A'}</td>
+                      <td>{doctor.id || "N/A"}</td>
+                      <td>{doctor.user?.fullName || "N/A"}</td>
+                      <td>{doctor.specialization || "N/A"}</td>
+                      <td>{doctor.clinic?.name || "N/A"}</td>
+                      <td>{doctor.user?.email || "N/A"}</td>
+                      <td>{doctor.user?.phone || "N/A"}</td>
                       <td>
                         {doctor.user?.createdAt
-                          ? new Date(doctor.user.createdAt).toLocaleDateString('vi-VN')
-                          : 'N/A'}
+                          ? new Date(doctor.user.createdAt).toLocaleDateString(
+                              "vi-VN"
+                            )
+                          : "N/A"}
                       </td>
                       <td>
                         <button
@@ -143,4 +154,3 @@ export default function PendingDoctorsPage() {
     </div>
   );
 }
-

@@ -81,7 +81,8 @@ export default function AppointmentForm({ bgColor = 'bg-white', textColor = 'bg-
       setIsLoadingDoctors(true);
       const doctorApi = getDoctorManagement();
       const response = await doctorApi.getDoctorsByClinic(hospitalId);
-      const doctorsData = Array.isArray(response) ? response : (Array.isArray(response.data) ? response.data : []);
+      // API function already extracts response.data, so response is the data itself
+      const doctorsData = Array.isArray(response) ? response : (Array.isArray((response as any)?.data) ? (response as any).data : []);
       setDoctors(doctorsData);
     } catch (error: any) {
       console.error('Error loading doctors:', error);

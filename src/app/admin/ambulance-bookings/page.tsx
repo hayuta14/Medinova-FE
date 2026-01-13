@@ -1,65 +1,65 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getPharmacyOrderManagement } from "@/generated/api/endpoints/pharmacy-order-management/pharmacy-order-management";
+import { getAmbulanceBookingManagement } from "@/generated/api/endpoints/ambulance-booking-management/ambulance-booking-management";
 import { getToken } from "@/utils/auth";
 import axios from "axios";
 
-export default function PharmacyOrdersPage() {
-  const [orders, setOrders] = useState<any[]>([]);
+export default function AmbulanceBookingsPage() {
+  const [bookings, setBookings] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("");
-  const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [selectedBooking, setSelectedBooking] = useState<any>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [newStatus, setNewStatus] = useState<string>("");
 
   useEffect(() => {
-    loadPharmacyOrders();
+    loadAmbulanceBookings();
   }, [statusFilter]);
 
-  const loadPharmacyOrders = async () => {
+  const loadAmbulanceBookings = async () => {
     try {
       setIsLoading(true);
-      const pharmacyApi = getPharmacyOrderManagement();
-      const response = await pharmacyApi.getAllPharmacyOrders({
+      const ambulanceApi = getAmbulanceBookingManagement();
+      const response = await ambulanceApi.getAllAmbulanceBookings({
         status: statusFilter || undefined,
       });
 
       const data = (response as any)?.data || response;
-      setOrders(Array.isArray(data) ? data : []);
+      setBookings(Array.isArray(data) ? data : []);
     } catch (error: any) {
-      console.error("Error loading pharmacy orders:", error);
-      setOrders([]);
+      console.error("Error loading ambulance bookings:", error);
+      setBookings([]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const loadOrderDetail = async (orderId: number) => {
+  const loadBookingDetail = async (bookingId: number) => {
     try {
       setIsLoadingDetail(true);
-      const pharmacyApi = getPharmacyOrderManagement();
-      const response = await pharmacyApi.getPharmacyOrderById(orderId);
+      const ambulanceApi = getAmbulanceBookingManagement();
+      const response = await ambulanceApi.getAmbulanceBookingById(bookingId);
       const data = (response as any)?.data || response;
-      setSelectedOrder(data);
+      setSelectedBooking(data);
       setNewStatus(data.status);
     } catch (error: any) {
-      console.error("Error loading order detail:", error);
-      alert("Không thể tải chi tiết đơn thuốc: " + (error?.response?.data?.message || error?.message));
+      console.error("Error loading booking detail:", error);
+      alert("Không thể tải chi tiết đặt xe: " + (error?.response?.data?.message || error?.message));
     } finally {
       setIsLoadingDetail(false);
     }
   };
 
-  const handleViewDetails = async (order: any) => {
+  const handleViewDetails = async (booking: any) => {
     setShowDetailModal(true);
-    await loadOrderDetail(order.id);
+    await loadBookingDetail(booking.id);
   };
 
   const handleUpdateStatus = async () => {
-    if (!selectedOrder || !newStatus || newStatus === selectedOrder.status) {
+    if (!selectedBooking || !newStatus || newStatus === selectedBooking.status) {
       return;
     }
 
@@ -69,7 +69,7 @@ export default function PharmacyOrdersPage() {
       const baseURL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
       
       await axios.put(
-        `${baseURL}/api/pharmacy-orders/${selectedOrder.id}/status`,
+        `${baseURL}/api/ambulance-bookings/${selectedBooking.id}/status`,
         null,
         {
           params: { status: newStatus },
@@ -79,9 +79,9 @@ export default function PharmacyOrdersPage() {
         }
       );
 
-      // Reload order detail and orders list
-      await loadOrderDetail(selectedOrder.id);
-      await loadPharmacyOrders();
+      // Reload booking detail and bookings list
+      await loadBookingDetail(selectedBooking.id);
+      await loadAmbulanceBookings();
       
       alert("Cập nhật trạng thái thành công!");
     } catch (error: any) {
@@ -96,13 +96,13 @@ export default function PharmacyOrdersPage() {
     switch (status) {
       case "PENDING":
         return "bg-warning";
-      case "PROCESSING":
-        return "bg-info";
-      case "READY":
+      case "ASSIGNED":
         return "bg-primary";
-      case "OUT_FOR_DELIVERY":
+      case "IN_TRANSIT":
         return "bg-info";
-      case "DELIVERED":
+      case "ARRIVED":
+        return "bg-success";
+      case "COMPLETED":
         return "bg-success";
       case "CANCELLED":
         return "bg-secondary";
@@ -114,29 +114,22 @@ export default function PharmacyOrdersPage() {
   const getStatusLabel = (status: string) => {
     const labels: { [key: string]: string } = {
       PENDING: "Chờ xử lý",
-      PROCESSING: "Đang xử lý",
-      READY: "Sẵn sàng",
-      OUT_FOR_DELIVERY: "Đang giao hàng",
-      DELIVERED: "Đã giao hàng",
+      ASSIGNED: "Đã phân công",
+      IN_TRANSIT: "Đang di chuyển",
+      ARRIVED: "Đã đến nơi",
+      COMPLETED: "Hoàn thành",
       CANCELLED: "Đã hủy",
     };
     return labels[status] || status;
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("vi-VN", {
-      style: "currency",
-      currency: "VND",
-    }).format(amount);
-  };
-
   return (
     <div>
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <h2 className="mb-0">💊 Quản lý đơn thuốc</h2>
+        <h2 className="mb-0">🚑 Quản lý đặt xe cấp cứu</h2>
         <button
           className="btn btn-outline-primary btn-sm"
-          onClick={loadPharmacyOrders}
+          onClick={loadAmbulanceBookings}
         >
           <i className="fa fa-sync-alt me-1"></i>Làm mới
         </button>
@@ -155,16 +148,16 @@ export default function PharmacyOrdersPage() {
               >
                 <option value="">Tất cả trạng thái</option>
                 <option value="PENDING">PENDING - Chờ xử lý</option>
-                <option value="PROCESSING">PROCESSING - Đang xử lý</option>
-                <option value="READY">READY - Sẵn sàng</option>
-                <option value="OUT_FOR_DELIVERY">OUT_FOR_DELIVERY - Đang giao hàng</option>
-                <option value="DELIVERED">DELIVERED - Đã giao hàng</option>
+                <option value="ASSIGNED">ASSIGNED - Đã phân công</option>
+                <option value="IN_TRANSIT">IN_TRANSIT - Đang di chuyển</option>
+                <option value="ARRIVED">ARRIVED - Đã đến nơi</option>
+                <option value="COMPLETED">COMPLETED - Hoàn thành</option>
                 <option value="CANCELLED">CANCELLED - Đã hủy</option>
               </select>
             </div>
             <div className="col-md-8 d-flex align-items-end">
               <div className="text-muted">
-                Tổng: <strong>{orders.length}</strong> đơn thuốc
+                Tổng: <strong>{bookings.length}</strong> đặt xe
               </div>
             </div>
           </div>
@@ -176,14 +169,14 @@ export default function PharmacyOrdersPage() {
         <div className="card-body">
           {isLoading ? (
             <div className="text-center py-5">
-              <div className="spinner-border text-success" role="status">
+              <div className="spinner-border text-primary" role="status">
                 <span className="visually-hidden">Loading...</span>
               </div>
             </div>
-          ) : orders.length === 0 ? (
+          ) : bookings.length === 0 ? (
             <div className="text-center py-5">
-              <i className="fa fa-pills fa-3x text-muted mb-3"></i>
-              <p className="text-muted">Không tìm thấy đơn thuốc nào</p>
+              <i className="fa fa-ambulance fa-3x text-muted mb-3"></i>
+              <p className="text-muted">Không tìm thấy đặt xe nào</p>
             </div>
           ) : (
             <div className="table-responsive">
@@ -193,47 +186,45 @@ export default function PharmacyOrdersPage() {
                     <th>ID</th>
                     <th>Bệnh nhân</th>
                     <th>Phòng khám</th>
-                    <th>Số lượng thuốc</th>
-                    <th>Tổng tiền</th>
+                    <th>Xe cấp cứu</th>
+                    <th>Tài xế</th>
+                    <th>Địa chỉ đón</th>
                     <th>Trạng thái</th>
                     <th>Ngày tạo</th>
                     <th>Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {orders.map((order) => (
-                    <tr key={order.id}>
-                      <td>#{order.id}</td>
-                      <td>{order.patientName || "N/A"}</td>
-                      <td>{order.clinicName || "N/A"}</td>
+                  {bookings.map((booking) => (
+                    <tr key={booking.id}>
+                      <td>#{booking.id}</td>
+                      <td>{booking.patientName || "N/A"}</td>
+                      <td>{booking.clinicName || "N/A"}</td>
+                      <td>{booking.ambulanceLicensePlate || "Chưa phân công"}</td>
+                      <td>{booking.driverName || "Chưa phân công"}</td>
                       <td>
-                        {order.items && order.items.length > 0
-                          ? `${order.items.length} loại`
-                          : "N/A"}
-                      </td>
-                      <td>
-                        {order.totalAmount
-                          ? formatCurrency(order.totalAmount)
+                        {booking.pickupAddress
+                          ? booking.pickupAddress.substring(0, 30) + "..."
                           : "N/A"}
                       </td>
                       <td>
                         <span
                           className={`badge ${getStatusBadgeClass(
-                            order.status
+                            booking.status
                           )}`}
                         >
-                          {getStatusLabel(order.status)}
+                          {getStatusLabel(booking.status)}
                         </span>
                       </td>
                       <td>
-                        {order.createdAt
-                          ? new Date(order.createdAt).toLocaleString("vi-VN")
+                        {booking.createdAt
+                          ? new Date(booking.createdAt).toLocaleString("vi-VN")
                           : "N/A"}
                       </td>
                       <td>
                         <button
                           className="btn btn-sm btn-outline-primary"
-                          onClick={() => handleViewDetails(order)}
+                          onClick={() => handleViewDetails(booking)}
                         >
                           <i className="fa fa-eye me-1"></i>Chi tiết
                         </button>
@@ -266,7 +257,7 @@ export default function PharmacyOrdersPage() {
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setShowDetailModal(false);
-              setSelectedOrder(null);
+              setSelectedBooking(null);
               setNewStatus("");
             }
           }}
@@ -284,14 +275,14 @@ export default function PharmacyOrdersPage() {
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">
-                  Chi tiết đơn thuốc #{selectedOrder?.id}
+                  Chi tiết đặt xe #{selectedBooking?.id}
                 </h5>
                 <button
                   type="button"
                   className="btn-close"
                   onClick={() => {
                     setShowDetailModal(false);
-                    setSelectedOrder(null);
+                    setSelectedBooking(null);
                     setNewStatus("");
                   }}
                 ></button>
@@ -303,198 +294,146 @@ export default function PharmacyOrdersPage() {
                       <span className="visually-hidden">Loading...</span>
                     </div>
                   </div>
-                ) : selectedOrder ? (
+                ) : selectedBooking ? (
                   <>
-                    {/* Order Info */}
+                    {/* Booking Info */}
                     <div className="row mb-4">
                       <div className="col-md-6">
-                        <h6 className="text-muted mb-3">Thông tin đơn hàng</h6>
+                        <h6 className="text-muted mb-3">Thông tin đặt xe</h6>
                         <table className="table table-sm">
                           <tbody>
                             <tr>
                               <td><strong>ID:</strong></td>
-                              <td>#{selectedOrder.id}</td>
+                              <td>#{selectedBooking.id}</td>
                             </tr>
                             <tr>
                               <td><strong>Bệnh nhân:</strong></td>
-                              <td>{selectedOrder.patientName || "N/A"}</td>
+                              <td>{selectedBooking.patientName || "N/A"}</td>
                             </tr>
                             <tr>
                               <td><strong>Phòng khám:</strong></td>
-                              <td>{selectedOrder.clinicName || "N/A"}</td>
+                              <td>{selectedBooking.clinicName || "N/A"}</td>
+                            </tr>
+                            <tr>
+                              <td><strong>Xe cấp cứu:</strong></td>
+                              <td>{selectedBooking.ambulanceLicensePlate || "Chưa phân công"}</td>
+                            </tr>
+                            <tr>
+                              <td><strong>Tài xế:</strong></td>
+                              <td>{selectedBooking.driverName || "Chưa phân công"}</td>
                             </tr>
                             <tr>
                               <td><strong>Trạng thái:</strong></td>
                               <td>
                                 <span
                                   className={`badge ${getStatusBadgeClass(
-                                    selectedOrder.status
+                                    selectedBooking.status
                                   )}`}
                                 >
-                                  {getStatusLabel(selectedOrder.status)}
+                                  {getStatusLabel(selectedBooking.status)}
                                 </span>
                               </td>
                             </tr>
-                            <tr>
-                              <td><strong>Ngày tạo:</strong></td>
-                              <td>
-                                {selectedOrder.createdAt
-                                  ? new Date(
-                                      selectedOrder.createdAt
-                                    ).toLocaleString("vi-VN")
-                                  : "N/A"}
-                              </td>
-                            </tr>
-                            {selectedOrder.processedAt && (
-                              <tr>
-                                <td><strong>Ngày xử lý:</strong></td>
-                                <td>
-                                  {new Date(
-                                    selectedOrder.processedAt
-                                  ).toLocaleString("vi-VN")}
-                                </td>
-                              </tr>
-                            )}
-                            {selectedOrder.deliveredAt && (
-                              <tr>
-                                <td><strong>Ngày giao hàng:</strong></td>
-                                <td>
-                                  {new Date(
-                                    selectedOrder.deliveredAt
-                                  ).toLocaleString("vi-VN")}
-                                </td>
-                              </tr>
-                            )}
                           </tbody>
                         </table>
                       </div>
                       <div className="col-md-6">
-                        <h6 className="text-muted mb-3">Thông tin giao hàng</h6>
+                        <h6 className="text-muted mb-3">Thông tin địa điểm</h6>
                         <table className="table table-sm">
                           <tbody>
                             <tr>
-                              <td><strong>Người nhận:</strong></td>
-                              <td>{selectedOrder.deliveryName || "N/A"}</td>
+                              <td><strong>Địa chỉ đón:</strong></td>
+                              <td>{selectedBooking.pickupAddress || "N/A"}</td>
                             </tr>
+                            {selectedBooking.pickupLat && selectedBooking.pickupLng && (
+                              <tr>
+                                <td><strong>Tọa độ đón:</strong></td>
+                                <td>
+                                  {selectedBooking.pickupLat.toFixed(6)}, {selectedBooking.pickupLng.toFixed(6)}
+                                </td>
+                              </tr>
+                            )}
+                            {selectedBooking.destinationAddress && (
+                              <tr>
+                                <td><strong>Địa chỉ đến:</strong></td>
+                                <td>{selectedBooking.destinationAddress}</td>
+                              </tr>
+                            )}
+                            {selectedBooking.destinationLat && selectedBooking.destinationLng && (
+                              <tr>
+                                <td><strong>Tọa độ đến:</strong></td>
+                                <td>
+                                  {selectedBooking.destinationLat.toFixed(6)}, {selectedBooking.destinationLng.toFixed(6)}
+                                </td>
+                              </tr>
+                            )}
+                            {selectedBooking.distanceKm && (
+                              <tr>
+                                <td><strong>Khoảng cách:</strong></td>
+                                <td>{selectedBooking.distanceKm.toFixed(2)} km</td>
+                              </tr>
+                            )}
+                            {selectedBooking.estimatedTime && (
+                              <tr>
+                                <td><strong>Thời gian ước tính:</strong></td>
+                                <td>{selectedBooking.estimatedTime} phút</td>
+                              </tr>
+                            )}
                             <tr>
-                              <td><strong>Số điện thoại:</strong></td>
-                              <td>{selectedOrder.deliveryPhone || "N/A"}</td>
-                            </tr>
-                            <tr>
-                              <td><strong>Địa chỉ:</strong></td>
+                              <td><strong>Ngày tạo:</strong></td>
                               <td>
-                                {selectedOrder.deliveryAddress || "N/A"}
+                                {selectedBooking.createdAt
+                                  ? new Date(
+                                      selectedBooking.createdAt
+                                    ).toLocaleString("vi-VN")
+                                  : "N/A"}
                               </td>
                             </tr>
-                            <tr>
-                              <td><strong>Phương thức thanh toán:</strong></td>
-                              <td>
-                                {selectedOrder.paymentMethod ===
-                                "CASH_ON_DELIVERY"
-                                  ? "Tiền mặt khi nhận hàng"
-                                  : selectedOrder.paymentMethod ===
-                                    "CREDIT_CARD"
-                                  ? "Thẻ tín dụng"
-                                  : selectedOrder.paymentMethod ===
-                                    "BANK_TRANSFER"
-                                  ? "Chuyển khoản"
-                                  : selectedOrder.paymentMethod || "N/A"}
-                              </td>
-                            </tr>
-                            {selectedOrder.notes && (
+                            {selectedBooking.assignedAt && (
+                              <tr>
+                                <td><strong>Ngày phân công:</strong></td>
+                                <td>
+                                  {new Date(
+                                    selectedBooking.assignedAt
+                                  ).toLocaleString("vi-VN")}
+                                </td>
+                              </tr>
+                            )}
+                            {selectedBooking.arrivedAt && (
+                              <tr>
+                                <td><strong>Ngày đến nơi:</strong></td>
+                                <td>
+                                  {new Date(
+                                    selectedBooking.arrivedAt
+                                  ).toLocaleString("vi-VN")}
+                                </td>
+                              </tr>
+                            )}
+                            {selectedBooking.completedAt && (
+                              <tr>
+                                <td><strong>Ngày hoàn thành:</strong></td>
+                                <td>
+                                  {new Date(
+                                    selectedBooking.completedAt
+                                  ).toLocaleString("vi-VN")}
+                                </td>
+                              </tr>
+                            )}
+                            {selectedBooking.notes && (
                               <tr>
                                 <td><strong>Ghi chú:</strong></td>
-                                <td>{selectedOrder.notes}</td>
+                                <td>{selectedBooking.notes}</td>
                               </tr>
                             )}
                           </tbody>
                         </table>
                       </div>
-                    </div>
-
-                    {/* Order Items */}
-                    <div className="mb-4">
-                      <h6 className="text-muted mb-3">Danh sách thuốc</h6>
-                      {selectedOrder.items &&
-                      selectedOrder.items.length > 0 ? (
-                        <div className="table-responsive">
-                          <table className="table table-sm table-bordered">
-                            <thead>
-                              <tr>
-                                <th>STT</th>
-                                <th>Tên thuốc</th>
-                                <th>Số lượng</th>
-                                <th>Đơn giá</th>
-                                <th>Thành tiền</th>
-                                <th>Ghi chú</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {selectedOrder.items.map(
-                                (item: any, index: number) => (
-                                  <tr key={item.id}>
-                                    <td>{index + 1}</td>
-                                    <td>{item.medicineName}</td>
-                                    <td>{item.quantity}</td>
-                                    <td>{formatCurrency(item.price)}</td>
-                                    <td>
-                                      {formatCurrency(item.totalPrice)}
-                                    </td>
-                                    <td>{item.notes || "-"}</td>
-                                  </tr>
-                                )
-                              )}
-                            </tbody>
-                            <tfoot>
-                              <tr>
-                                <td colSpan={4} className="text-end">
-                                  <strong>Tổng tiền thuốc:</strong>
-                                </td>
-                                <td colSpan={2}>
-                                  <strong>
-                                    {formatCurrency(
-                                      selectedOrder.totalAmount -
-                                        (selectedOrder.deliveryFee || 0)
-                                    )}
-                                  </strong>
-                                </td>
-                              </tr>
-                              {selectedOrder.deliveryFee && (
-                                <tr>
-                                  <td colSpan={4} className="text-end">
-                                    <strong>Phí giao hàng:</strong>
-                                  </td>
-                                  <td colSpan={2}>
-                                    <strong>
-                                      {formatCurrency(
-                                        selectedOrder.deliveryFee
-                                      )}
-                                    </strong>
-                                  </td>
-                                </tr>
-                              )}
-                              <tr className="table-primary">
-                                <td colSpan={4} className="text-end">
-                                  <strong>Tổng cộng:</strong>
-                                </td>
-                                <td colSpan={2}>
-                                  <strong>
-                                    {formatCurrency(selectedOrder.totalAmount)}
-                                  </strong>
-                                </td>
-                              </tr>
-                            </tfoot>
-                          </table>
-                        </div>
-                      ) : (
-                        <p className="text-muted">Không có thuốc nào</p>
-                      )}
                     </div>
 
                     {/* Update Status */}
                     <div className="card bg-light">
                       <div className="card-body">
-                        <h6 className="text-muted mb-3">Cập nhật trạng thái giao hàng</h6>
+                        <h6 className="text-muted mb-3">Cập nhật trạng thái</h6>
                         <div className="row g-3">
                           <div className="col-md-6">
                             <label className="form-label">
@@ -503,10 +442,10 @@ export default function PharmacyOrdersPage() {
                             <div>
                               <span
                                 className={`badge ${getStatusBadgeClass(
-                                  selectedOrder.status
+                                  selectedBooking.status
                                 )}`}
                               >
-                                {getStatusLabel(selectedOrder.status)}
+                                {getStatusLabel(selectedBooking.status)}
                               </span>
                             </div>
                           </div>
@@ -521,17 +460,15 @@ export default function PharmacyOrdersPage() {
                               disabled={isUpdatingStatus}
                             >
                               <option value="PENDING">PENDING - Chờ xử lý</option>
-                              <option value="PROCESSING">PROCESSING - Đang xử lý</option>
-                              <option value="READY">READY - Sẵn sàng</option>
-                              <option value="OUT_FOR_DELIVERY">
-                                OUT_FOR_DELIVERY - Đang giao hàng
-                              </option>
-                              <option value="DELIVERED">DELIVERED - Đã giao hàng</option>
+                              <option value="ASSIGNED">ASSIGNED - Đã phân công</option>
+                              <option value="IN_TRANSIT">IN_TRANSIT - Đang di chuyển</option>
+                              <option value="ARRIVED">ARRIVED - Đã đến nơi</option>
+                              <option value="COMPLETED">COMPLETED - Hoàn thành</option>
                               <option value="CANCELLED">CANCELLED - Đã hủy</option>
                             </select>
                           </div>
                         </div>
-                        {newStatus !== selectedOrder.status && (
+                        {newStatus !== selectedBooking.status && (
                           <div className="mt-3">
                             <button
                               className="btn btn-primary"
@@ -559,7 +496,7 @@ export default function PharmacyOrdersPage() {
                     </div>
                   </>
                 ) : (
-                  <p className="text-muted">Không tìm thấy thông tin đơn hàng</p>
+                  <p className="text-muted">Không tìm thấy thông tin đặt xe</p>
                 )}
               </div>
               <div className="modal-footer">
@@ -568,7 +505,7 @@ export default function PharmacyOrdersPage() {
                   className="btn btn-secondary"
                   onClick={() => {
                     setShowDetailModal(false);
-                    setSelectedOrder(null);
+                    setSelectedBooking(null);
                     setNewStatus("");
                   }}
                 >
@@ -582,3 +519,4 @@ export default function PharmacyOrdersPage() {
     </div>
   );
 }
+

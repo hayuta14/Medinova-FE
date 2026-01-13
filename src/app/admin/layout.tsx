@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { isAuthenticated, removeToken, getUser } from '@/utils/auth';
-import { getAuthentication } from '@/generated/api/endpoints/authentication/authentication';
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { isAuthenticated, removeToken, getUser } from "@/utils/auth";
+import { getAuthentication } from "@/generated/api/endpoints/authentication/authentication";
 
 export default function AdminLayout({
   children,
@@ -20,7 +20,7 @@ export default function AdminLayout({
   useEffect(() => {
     // Validate token và check role
     const validateTokenAndRole = async () => {
-      if (typeof window === 'undefined') {
+      if (typeof window === "undefined") {
         setIsChecking(false);
         return;
       }
@@ -30,7 +30,7 @@ export default function AdminLayout({
         removeToken();
         setIsAuthorized(false);
         setIsChecking(false);
-        router.push('/login');
+        router.push("/login");
         return;
       }
 
@@ -39,8 +39,8 @@ export default function AdminLayout({
         const authApi = getAuthentication();
         const response = await authApi.validateToken();
 
-        // Kiểm tra response từ API
-        const validationData = response.data || response;
+        // API function already extracts response.data, so response is the data itself
+        const validationData = (response as any)?.data || response;
         const isValid = validationData.valid !== false;
         const isExpired = validationData.expired === true;
 
@@ -49,14 +49,14 @@ export default function AdminLayout({
           removeToken();
           setIsAuthorized(false);
           setIsChecking(false);
-          router.push('/login');
+          router.push("/login");
           return;
         }
 
         // Token hợp lệ, kiểm tra role
         const user = getUser();
         // Chỉ cho phép truy cập nếu role là ADMIN
-        if (user && (user.role === 'ADMIN' || user.role === 'admin')) {
+        if (user && (user.role === "ADMIN" || user.role === "admin")) {
           setIsAuthorized(true);
           setIsChecking(false);
         } else {
@@ -64,15 +64,15 @@ export default function AdminLayout({
           removeToken();
           setIsAuthorized(false);
           setIsChecking(false);
-          router.push('/');
+          router.push("/");
         }
       } catch (error: any) {
         // Nếu API trả về lỗi, token không hợp lệ
-        console.error('Token validation error:', error);
+        console.error("Token validation error:", error);
         removeToken();
         setIsAuthorized(false);
         setIsChecking(false);
-        router.push('/login');
+        router.push("/login");
       }
     };
 
@@ -82,7 +82,10 @@ export default function AdminLayout({
   // Hiển thị loading khi đang kiểm tra
   if (isChecking) {
     return (
-      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '100vh' }}>
+      <div
+        className="d-flex justify-content-center align-items-center"
+        style={{ minHeight: "100vh" }}
+      >
         <div className="spinner-border text-primary" role="status">
           <span className="visually-hidden">Loading...</span>
         </div>
@@ -102,113 +105,113 @@ export default function AdminLayout({
       await authApi.logout();
     } catch (error) {
       // Nếu API logout fail, vẫn tiếp tục xóa localStorage
-      console.error('Logout API error:', error);
+      console.error("Logout API error:", error);
     } finally {
       // Xóa tất cả auth storage trong localStorage
       removeToken();
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new Event('auth-change'));
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("auth-change"));
       }
-      router.push('/');
+      router.push("/");
     }
   };
 
   const isActive = (path: string) => {
-    if (path === '/admin') {
-      return pathname === '/admin' || pathname === '/admin/dashboard';
+    if (path === "/admin") {
+      return pathname === "/admin" || pathname === "/admin/dashboard";
     }
     return pathname?.startsWith(path);
   };
 
   const menuItems = [
-    { path: '/admin/dashboard', label: 'Dashboard', icon: 'fa-tachometer-alt' },
+    { path: "/admin/dashboard", label: "Dashboard", icon: "fa-tachometer-alt" },
     {
-      path: '/admin/hospitals',
-      label: 'Hospitals',
-      icon: 'fa-hospital',
+      path: "/admin/hospitals",
+      label: "Hospitals",
+      icon: "fa-hospital",
+      submenu: [{ path: "/admin/hospitals", label: "Danh sách cơ sở" }],
+    },
+    {
+      path: "/admin/ambulances",
+      label: "Ambulances",
+      icon: "fa-ambulance",
+      submenu: [{ path: "/admin/ambulances", label: "Danh sách xe cấp cứu" }],
+    },
+    {
+      path: "/admin/doctors",
+      label: "Doctors",
+      icon: "fa-user-md",
       submenu: [
-        { path: '/admin/hospitals', label: 'Danh sách cơ sở' },
-
+        { path: "/admin/doctors", label: "Danh sách bác sĩ" },
+        { path: "/admin/doctors/pending", label: "Bác sĩ chờ duyệt" },
       ],
     },
     {
-      path: '/admin/ambulances',
-      label: 'Ambulances',
-      icon: 'fa-ambulance',
+      path: "/admin/approve-requests",
+      label: "Approve Requests",
+      icon: "fa-check-circle",
+      submenu: [{ path: "/admin/approve-requests", label: "Approve Requests" }],
+    },
+    {
+      path: "/admin/blogs",
+      label: "Blogs",
+      icon: "fa-blog",
       submenu: [
-        { path: '/admin/ambulances', label: 'Danh sách xe cấp cứu' },
+        { path: "/admin/blogs", label: "Danh sách blog" },
+        { path: "/admin/blogs/create", label: "Tạo blog" },
       ],
     },
     {
-      path: '/admin/doctors',
-      label: 'Doctors',
-      icon: 'fa-user-md',
+      path: "/admin/ranking",
+      label: "Ranking",
+      icon: "fa-trophy",
       submenu: [
-        { path: '/admin/doctors', label: 'Danh sách bác sĩ' },
-        { path: '/admin/doctors/pending', label: 'Bác sĩ chờ duyệt' },
+        { path: "/admin/ranking/doctors", label: "Xếp hạng bác sĩ" },
+        { path: "/admin/ranking/hospitals", label: "Xếp hạng cơ sở" },
       ],
     },
-    { 
-      path: '/admin/approve-requests', 
-      label: 'Approve Requests', 
-      icon: 'fa-check-circle', 
-      submenu: [
-        { path: '/admin/approve-requests', label: 'Approve Requests' }
-      ] 
+    { path: "/admin/users", label: "Users", icon: "fa-users" },
+    {
+      path: "/admin/appointments",
+      label: "Appointments",
+      icon: "fa-calendar-check",
     },
     {
-      path: '/admin/blogs',
-      label: 'Blogs',
-      icon: 'fa-blog',
-      submenu: [
-        { path: '/admin/blogs', label: 'Danh sách blog' },
-        { path: '/admin/blogs/create', label: 'Tạo blog' },
-      ],
+      path: "/admin/emergencies",
+      label: "Emergencies",
+      icon: "fa-ambulance",
     },
     {
-      path: '/admin/ranking',
-      label: 'Ranking',
-      icon: 'fa-trophy',
-      submenu: [
-        { path: '/admin/ranking/doctors', label: 'Xếp hạng bác sĩ' },
-        { path: '/admin/ranking/hospitals', label: 'Xếp hạng cơ sở' },
-      ],
-    },
-    { path: '/admin/users', label: 'Users', icon: 'fa-users' },
-    {
-      path: '/admin/appointments',
-      label: 'Appointments',
-      icon: 'fa-calendar-check',
+      path: "/admin/blood-tests",
+      label: "Blood Tests",
+      icon: "fa-vial",
     },
     {
-      path: '/admin/emergencies',
-      label: 'Emergencies',
-      icon: 'fa-ambulance',
+      path: "/admin/pharmacy-orders",
+      label: "Pharmacy Orders",
+      icon: "fa-pills",
     },
     {
-      path: '/admin/blood-tests',
-      label: 'Blood Tests',
-      icon: 'fa-vial',
+      path: "/admin/ambulance-bookings",
+      label: "Ambulance Bookings",
+      icon: "fa-ambulance",
     },
-    {
-      path: '/admin/pharmacy-orders',
-      label: 'Pharmacy Orders',
-      icon: 'fa-pills',
-    },
-    { path: '/admin/settings', label: 'Settings', icon: 'fa-cog' },
+    { path: "/admin/settings", label: "Settings", icon: "fa-cog" },
   ];
 
   return (
-    <div className="d-flex" style={{ minHeight: '100vh' }}>
+    <div className="d-flex" style={{ minHeight: "100vh" }}>
       {/* Sidebar */}
       <div
-        className={`bg-dark text-white ${sidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}
+        className={`bg-dark text-white ${
+          sidebarOpen ? "sidebar-open" : "sidebar-closed"
+        }`}
         style={{
-          width: sidebarOpen ? '250px' : '60px',
-          transition: 'width 0.3s',
-          position: 'fixed',
-          height: '100vh',
-          overflowY: 'auto',
+          width: sidebarOpen ? "250px" : "60px",
+          transition: "width 0.3s",
+          position: "fixed",
+          height: "100vh",
+          overflowY: "auto",
           zIndex: 1000,
         }}
       >
@@ -218,7 +221,7 @@ export default function AdminLayout({
             className="btn btn-sm btn-outline-light"
             onClick={() => setSidebarOpen(!sidebarOpen)}
           >
-            <i className={`fa fa-${sidebarOpen ? 'times' : 'bars'}`}></i>
+            <i className={`fa fa-${sidebarOpen ? "times" : "bars"}`}></i>
           </button>
         </div>
         <nav className="p-2">
@@ -227,23 +230,29 @@ export default function AdminLayout({
               <Link
                 href={item.path}
                 className={`d-flex align-items-center p-2 text-white text-decoration-none rounded mb-1 ${
-                  isActive(item.path) ? 'bg-primary' : 'hover-bg-secondary'
+                  isActive(item.path) ? "bg-primary" : "hover-bg-secondary"
                 }`}
                 style={{
-                  backgroundColor: isActive(item.path) ? 'var(--primary)' : 'transparent',
+                  backgroundColor: isActive(item.path)
+                    ? "var(--primary)"
+                    : "transparent",
                 }}
                 onMouseEnter={(e) => {
                   if (!isActive(item.path)) {
-                    e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)';
+                    e.currentTarget.style.backgroundColor =
+                      "rgba(255,255,255,0.1)";
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (!isActive(item.path)) {
-                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.backgroundColor = "transparent";
                   }
                 }}
               >
-                <i className={`fa ${item.icon} me-3`} style={{ width: '20px', textAlign: 'center' }}></i>
+                <i
+                  className={`fa ${item.icon} me-3`}
+                  style={{ width: "20px", textAlign: "center" }}
+                ></i>
                 {sidebarOpen && <span>{item.label}</span>}
               </Link>
               {sidebarOpen && item.submenu && isActive(item.path) && (
@@ -253,7 +262,7 @@ export default function AdminLayout({
                       key={sub.path}
                       href={sub.path}
                       className={`d-block p-2 text-white-50 text-decoration-none rounded mb-1 ${
-                        pathname === sub.path ? 'text-white fw-bold' : ''
+                        pathname === sub.path ? "text-white fw-bold" : ""
                       }`}
                     >
                       {sub.label}
@@ -270,7 +279,7 @@ export default function AdminLayout({
             onClick={handleLogout}
           >
             <i className="fa fa-sign-out-alt me-2"></i>
-            {sidebarOpen && 'Logout'}
+            {sidebarOpen && "Logout"}
           </button>
         </div>
       </div>
@@ -278,10 +287,10 @@ export default function AdminLayout({
       {/* Main Content */}
       <div
         style={{
-          marginLeft: sidebarOpen ? '250px' : '60px',
-          transition: 'margin-left 0.3s',
-          width: sidebarOpen ? 'calc(100% - 250px)' : 'calc(100% - 60px)',
-          minHeight: '100vh',
+          marginLeft: sidebarOpen ? "250px" : "60px",
+          transition: "margin-left 0.3s",
+          width: sidebarOpen ? "calc(100% - 250px)" : "calc(100% - 60px)",
+          minHeight: "100vh",
         }}
       >
         {/* Top Bar */}
@@ -300,4 +309,3 @@ export default function AdminLayout({
     </div>
   );
 }
-

@@ -1,17 +1,18 @@
-'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { getBloodTestManagement } from '@/generated/api/endpoints/blood-test-management/blood-test-management';
-import { getClinicManagement } from '@/generated/api/endpoints/clinic-management/clinic-management';
-import { getDoctorManagement } from '@/generated/api/endpoints/doctor-management/doctor-management';
-import { getUser } from '@/utils/auth';
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { getBloodTestManagement } from "@/generated/api/endpoints/blood-test-management/blood-test-management";
+import { getClinicManagement } from "@/generated/api/endpoints/clinic-management/clinic-management";
+import { getDoctorManagement } from "@/generated/api/endpoints/doctor-management/doctor-management";
+import { getUser } from "@/utils/auth";
 
 export default function BloodTestingPage() {
   const [tests, setTests] = useState<any[]>([]);
   const [clinics, setClinics] = useState<any[]>([]);
   const [doctorId, setDoctorId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>("");
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [selectedTest, setSelectedTest] = useState<any>(null);
 
@@ -46,28 +47,28 @@ export default function BloodTestingPage() {
       const response = await doctorApi.getAllDoctors();
       const doctorsData = (response as any)?.data || response;
       const allDoctors = Array.isArray(doctorsData) ? doctorsData : [];
-      
+
       let currentDoctor = null;
       if (userId) {
-        currentDoctor = allDoctors.find((doc: any) => 
-          doc.user?.id === userId || 
-          doc.userId === userId ||
-          doc.user?.userId === userId
+        currentDoctor = allDoctors.find(
+          (doc: any) =>
+            doc.user?.id === userId ||
+            doc.userId === userId ||
+            doc.user?.userId === userId
         );
       }
-      
+
       if (!currentDoctor && userEmail) {
-        currentDoctor = allDoctors.find((doc: any) => 
-          doc.user?.email === userEmail || 
-          doc.email === userEmail
+        currentDoctor = allDoctors.find(
+          (doc: any) => doc.user?.email === userEmail || doc.email === userEmail
         );
       }
-      
+
       if (currentDoctor && currentDoctor.id) {
         setDoctorId(Number(currentDoctor.id));
       }
     } catch (error) {
-      console.error('Error loading doctor ID:', error);
+      console.error("Error loading doctor ID:", error);
     }
   };
 
@@ -78,7 +79,7 @@ export default function BloodTestingPage() {
       const clinicsData = Array.isArray(response) ? response : [];
       setClinics(clinicsData);
     } catch (error) {
-      console.error('Error loading clinics:', error);
+      console.error("Error loading clinics:", error);
       setClinics([]);
     }
   };
@@ -89,7 +90,7 @@ export default function BloodTestingPage() {
     try {
       setIsLoading(true);
       const bloodTestApi = getBloodTestManagement();
-      
+
       // Get blood tests by clinic (doctor's clinic)
       const userData = getUser();
       const doctorApi = getDoctorManagement();
@@ -97,22 +98,24 @@ export default function BloodTestingPage() {
       const doctorsData = (doctorsResponse as any)?.data || doctorsResponse;
       const allDoctors = Array.isArray(doctorsData) ? doctorsData : [];
       const currentDoctor = allDoctors.find((doc: any) => doc.id === doctorId);
-      
+
       if (currentDoctor && currentDoctor.clinic?.id) {
         const response = await bloodTestApi.getBloodTestsByClinic(
           currentDoctor.clinic.id,
-          statusFilter || undefined
+          { status: statusFilter || undefined }
         );
         const data = (response as any)?.data || response;
         setTests(Array.isArray(data) ? data : []);
       } else {
         // Fallback: get all blood tests
-        const response = await bloodTestApi.getAllBloodTests(statusFilter || undefined);
+        const response = await bloodTestApi.getAllBloodTests({
+          status: statusFilter || undefined,
+        });
         const data = (response as any)?.data || response;
         setTests(Array.isArray(data) ? data : []);
       }
     } catch (error: any) {
-      console.error('Error loading blood tests:', error);
+      console.error("Error loading blood tests:", error);
       setTests([]);
     } finally {
       setIsLoading(false);
@@ -120,18 +123,23 @@ export default function BloodTestingPage() {
   };
 
   const handleUpdateStatus = async (testId: number, newStatus: string) => {
-    if (!confirm(`Bạn có chắc chắn muốn cập nhật trạng thái thành ${newStatus}?`)) {
+    if (
+      !confirm(`Bạn có chắc chắn muốn cập nhật trạng thái thành ${newStatus}?`)
+    ) {
       return;
     }
 
     try {
       const bloodTestApi = getBloodTestManagement();
-      await bloodTestApi.updateBloodTestStatus(testId, newStatus);
-      alert('Cập nhật trạng thái thành công!');
+      await bloodTestApi.updateBloodTestStatus(testId, { status: newStatus });
+      alert("Cập nhật trạng thái thành công!");
       await loadBloodTests();
     } catch (error: any) {
-      console.error('Error updating blood test status:', error);
-      const errorMessage = error?.response?.data?.message || error?.message || 'Có lỗi xảy ra khi cập nhật trạng thái.';
+      console.error("Error updating blood test status:", error);
+      const errorMessage =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Có lỗi xảy ra khi cập nhật trạng thái.";
       alert(errorMessage);
     }
   };
@@ -139,19 +147,22 @@ export default function BloodTestingPage() {
   const handleUploadResult = async (testId: number, resultFileUrl: string) => {
     try {
       const bloodTestApi = getBloodTestManagement();
-      await bloodTestApi.updateBloodTestResult(testId, resultFileUrl);
-      alert('Upload kết quả thành công!');
+      await bloodTestApi.updateBloodTestResult(testId, { resultFileUrl });
+      alert("Upload kết quả thành công!");
       await loadBloodTests();
     } catch (error: any) {
-      console.error('Error uploading result:', error);
-      const errorMessage = error?.response?.data?.message || error?.message || 'Có lỗi xảy ra khi upload kết quả.';
+      console.error("Error uploading result:", error);
+      const errorMessage =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Có lỗi xảy ra khi upload kết quả.";
       alert(errorMessage);
     }
   };
 
   const handleRequestTest = () => {
     // TODO: Implement request test
-    console.log('Request test');
+    console.log("Request test");
     setShowRequestModal(false);
   };
 
@@ -190,7 +201,10 @@ export default function BloodTestingPage() {
               </select>
             </div>
             <div className="col-md-8 d-flex align-items-end">
-              <button className="btn btn-outline-primary btn-sm" onClick={loadBloodTests}>
+              <button
+                className="btn btn-outline-primary btn-sm"
+                onClick={loadBloodTests}
+              >
                 <i className="fa fa-sync-alt me-1"></i>Refresh
               </button>
             </div>
@@ -203,7 +217,13 @@ export default function BloodTestingPage() {
           <div className="card shadow-sm border-warning">
             <div className="card-body text-center">
               <i className="fa fa-clock fa-2x text-warning mb-3"></i>
-              <h3>{tests.filter(t => t.status === 'PENDING' || t.status === 'SCHEDULED').length}</h3>
+              <h3>
+                {
+                  tests.filter(
+                    (t) => t.status === "PENDING" || t.status === "SCHEDULED"
+                  ).length
+                }
+              </h3>
               <p className="text-muted mb-0">Chờ kết quả</p>
             </div>
           </div>
@@ -212,7 +232,7 @@ export default function BloodTestingPage() {
           <div className="card shadow-sm border-success">
             <div className="card-body text-center">
               <i className="fa fa-check-circle fa-2x text-success mb-3"></i>
-              <h3>{tests.filter(t => t.status === 'COMPLETED').length}</h3>
+              <h3>{tests.filter((t) => t.status === "COMPLETED").length}</h3>
               <p className="text-muted mb-0">Đã có kết quả</p>
             </div>
           </div>
@@ -263,22 +283,28 @@ export default function BloodTestingPage() {
                   {tests.map((test) => (
                     <tr key={test.id}>
                       <td>#{test.id}</td>
-                      <td>{test.testType || 'N/A'}</td>
-                      <td>{test.clinicName || 'N/A'}</td>
+                      <td>{test.testType || "N/A"}</td>
+                      <td>{test.clinicName || "N/A"}</td>
                       <td>
                         {test.testDate
-                          ? new Date(test.testDate).toLocaleDateString('vi-VN')
-                          : 'N/A'}
+                          ? new Date(test.testDate).toLocaleDateString("vi-VN")
+                          : "N/A"}
                       </td>
-                      <td>{test.testTime || 'N/A'}</td>
+                      <td>{test.testTime || "N/A"}</td>
                       <td>
-                        <span className={`badge ${
-                          test.status === 'PENDING' ? 'bg-warning' :
-                          test.status === 'SCHEDULED' ? 'bg-primary' :
-                          test.status === 'COMPLETED' ? 'bg-success' :
-                          test.status === 'CANCELLED' ? 'bg-secondary' :
-                          'bg-secondary'
-                        }`}>
+                        <span
+                          className={`badge ${
+                            test.status === "PENDING"
+                              ? "bg-warning"
+                              : test.status === "SCHEDULED"
+                              ? "bg-primary"
+                              : test.status === "COMPLETED"
+                              ? "bg-success"
+                              : test.status === "CANCELLED"
+                              ? "bg-secondary"
+                              : "bg-secondary"
+                          }`}
+                        >
                           {test.status}
                         </span>
                       </td>
@@ -298,18 +324,22 @@ export default function BloodTestingPage() {
                       </td>
                       <td>
                         <div className="btn-group btn-group-sm">
-                          {test.status !== 'COMPLETED' && (
+                          {test.status !== "COMPLETED" && (
                             <button
                               className="btn btn-success"
-                              onClick={() => handleUpdateStatus(test.id, 'COMPLETED')}
+                              onClick={() =>
+                                handleUpdateStatus(test.id, "COMPLETED")
+                              }
                             >
                               <i className="fa fa-check me-1"></i>Hoàn thành
                             </button>
                           )}
-                          {test.status === 'PENDING' && (
+                          {test.status === "PENDING" && (
                             <button
                               className="btn btn-primary"
-                              onClick={() => handleUpdateStatus(test.id, 'SCHEDULED')}
+                              onClick={() =>
+                                handleUpdateStatus(test.id, "SCHEDULED")
+                              }
                             >
                               <i className="fa fa-calendar me-1"></i>Lên lịch
                             </button>
@@ -317,7 +347,7 @@ export default function BloodTestingPage() {
                         </div>
                       </td>
                       <td>
-                        {test.status === 'COMPLETED' && (
+                        {test.status === "COMPLETED" && (
                           <button
                             className="btn btn-sm btn-primary"
                             onClick={() => handleViewResult(test)}
@@ -337,9 +367,9 @@ export default function BloodTestingPage() {
 
       {/* Request Test Modal */}
       {showRequestModal && (
-        <div 
-          className="modal fade show" 
-          style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }} 
+        <div
+          className="modal fade show"
+          style={{ display: "block", backgroundColor: "rgba(0,0,0,0.5)" }}
           tabIndex={-1}
           onClick={(e) => {
             if (e.target === e.currentTarget) {
@@ -374,7 +404,11 @@ export default function BloodTestingPage() {
                 </div>
                 <div className="mb-3">
                   <label className="form-label">Ghi chú</label>
-                  <textarea className="form-control" rows={3} placeholder="Nhập ghi chú..."></textarea>
+                  <textarea
+                    className="form-control"
+                    rows={3}
+                    placeholder="Nhập ghi chú..."
+                  ></textarea>
                 </div>
               </div>
               <div className="modal-footer">
@@ -385,7 +419,11 @@ export default function BloodTestingPage() {
                 >
                   Hủy
                 </button>
-                <button type="button" className="btn btn-primary" onClick={handleRequestTest}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleRequestTest}
+                >
                   Tạo yêu cầu
                 </button>
               </div>
@@ -396,9 +434,9 @@ export default function BloodTestingPage() {
 
       {/* Test Result Modal */}
       {selectedTest && (
-        <div 
-          className="modal fade show" 
-          style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }} 
+        <div
+          className="modal fade show"
+          style={{ display: "block", backgroundColor: "rgba(0,0,0,0.5)" }}
           tabIndex={-1}
           onClick={(e) => {
             if (e.target === e.currentTarget) {
@@ -406,7 +444,10 @@ export default function BloodTestingPage() {
             }
           }}
         >
-          <div className="modal-dialog modal-lg" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="modal-dialog modal-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="modal-content">
               <div className="modal-header bg-success text-white">
                 <h5 className="modal-title">Kết quả xét nghiệm</h5>
@@ -420,13 +461,22 @@ export default function BloodTestingPage() {
                 <div className="row">
                   <div className="col-md-6">
                     <h6>Thông tin bệnh nhân</h6>
-                    <p><strong>Tên:</strong> {selectedTest.patientName}</p>
-                    <p><strong>Loại xét nghiệm:</strong> {selectedTest.testType}</p>
+                    <p>
+                      <strong>Tên:</strong> {selectedTest.patientName}
+                    </p>
+                    <p>
+                      <strong>Loại xét nghiệm:</strong> {selectedTest.testType}
+                    </p>
                   </div>
                   <div className="col-md-6">
                     <h6>Thông tin xét nghiệm</h6>
-                    <p><strong>Ngày yêu cầu:</strong> {selectedTest.requestDate}</p>
-                    <p><strong>Ngày có kết quả:</strong> {selectedTest.resultDate}</p>
+                    <p>
+                      <strong>Ngày yêu cầu:</strong> {selectedTest.requestDate}
+                    </p>
+                    <p>
+                      <strong>Ngày có kết quả:</strong>{" "}
+                      {selectedTest.resultDate}
+                    </p>
                   </div>
                 </div>
                 <div className="mt-3">
@@ -446,7 +496,11 @@ export default function BloodTestingPage() {
                           <td>Hemoglobin</td>
                           <td>14.5 g/dL</td>
                           <td>12-16 g/dL</td>
-                          <td><span className="badge bg-success">Bình thường</span></td>
+                          <td>
+                            <span className="badge bg-success">
+                              Bình thường
+                            </span>
+                          </td>
                         </tr>
                       </tbody>
                     </table>
@@ -454,7 +508,11 @@ export default function BloodTestingPage() {
                 </div>
                 <div className="mt-3">
                   <h6>Đánh giá</h6>
-                  <textarea className="form-control" rows={3} placeholder="Nhập đánh giá..."></textarea>
+                  <textarea
+                    className="form-control"
+                    rows={3}
+                    placeholder="Nhập đánh giá..."
+                  ></textarea>
                 </div>
               </div>
               <div className="modal-footer">
@@ -476,4 +534,3 @@ export default function BloodTestingPage() {
     </div>
   );
 }
-

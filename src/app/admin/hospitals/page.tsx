@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { getClinicManagement } from '@/generated/api/endpoints/clinic-management/clinic-management';
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { getClinicManagement } from "@/generated/api/endpoints/clinic-management/clinic-management";
 
 export default function HospitalsPage() {
   const router = useRouter();
@@ -13,17 +13,23 @@ export default function HospitalsPage() {
   const [isCreateMode, setIsCreateMode] = useState(false);
   const [editingHospital, setEditingHospital] = useState<any>(null);
   const [formData, setFormData] = useState({
-    name: '',
-    address: '',
-    phone: '',
-    description: '',
-    latitude: '',
-    longitude: '',
+    name: "",
+    address: "",
+    phone: "",
+    description: "",
+    latitude: "",
+    longitude: "",
   });
-  const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(null);
-  const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number }>({ lat: 21.0285, lng: 105.8542 }); // Default to Hanoi
+  const [coordinates, setCoordinates] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
+  const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number }>({
+    lat: 21.0285,
+    lng: 105.8542,
+  }); // Default to Hanoi
   const [mapZoom, setMapZoom] = useState(13);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [addressSuggestions, setAddressSuggestions] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -38,15 +44,15 @@ export default function HospitalsPage() {
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
-      if (showSuggestions && !target.closest('.address-search-container')) {
+      if (showSuggestions && !target.closest(".address-search-container")) {
         setShowSuggestions(false);
       }
     };
 
     if (showSuggestions) {
-      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener("mousedown", handleClickOutside);
       return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
+        document.removeEventListener("mousedown", handleClickOutside);
       };
     }
   }, [showSuggestions]);
@@ -61,7 +67,7 @@ export default function HospitalsPage() {
       const clinics = Array.isArray(response) ? response : [];
       setHospitals(clinics);
     } catch (error: any) {
-      console.error('Error loading hospitals:', error);
+      console.error("Error loading hospitals:", error);
       setHospitals([]);
     } finally {
       setIsLoading(false);
@@ -69,7 +75,7 @@ export default function HospitalsPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Bạn có chắc chắn muốn xóa cơ sở này?')) {
+    if (!confirm("Bạn có chắc chắn muốn xóa cơ sở này?")) {
       return;
     }
 
@@ -78,10 +84,13 @@ export default function HospitalsPage() {
       await clinicApi.deleteClinic(id);
       // Reload danh sách sau khi xóa
       await loadHospitals();
-      alert('Xóa cơ sở thành công!');
+      alert("Xóa cơ sở thành công!");
     } catch (error: any) {
-      console.error('Error deleting hospital:', error);
-      const errorMessage = error?.response?.data?.message || error?.message || 'Có lỗi xảy ra khi xóa cơ sở. Vui lòng thử lại!';
+      console.error("Error deleting hospital:", error);
+      const errorMessage =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Có lỗi xảy ra khi xóa cơ sở. Vui lòng thử lại!";
       alert(errorMessage);
     }
   };
@@ -90,16 +99,16 @@ export default function HospitalsPage() {
     setIsCreateMode(true);
     setEditingHospital(null);
     setFormData({
-      name: '',
-      address: '',
-      phone: '',
-      description: '',
-      latitude: '',
-      longitude: '',
+      name: "",
+      address: "",
+      phone: "",
+      description: "",
+      latitude: "",
+      longitude: "",
     });
     setCoordinates(null);
     setMapCenter({ lat: 21.0285, lng: 105.8542 });
-    setSearchQuery('');
+    setSearchQuery("");
     setAddressSuggestions([]);
     setShowSuggestions(false);
     setErrors({});
@@ -109,18 +118,21 @@ export default function HospitalsPage() {
   const handleEdit = (hospital: any) => {
     setIsCreateMode(false);
     setEditingHospital(hospital);
-    const lat = hospital.latitude || '';
-    const lng = hospital.longitude || '';
+    const lat = hospital.latitude || "";
+    const lng = hospital.longitude || "";
     setFormData({
-      name: hospital.name || '',
-      address: hospital.address || '',
-      phone: hospital.phone || '',
-      description: hospital.description || '',
+      name: hospital.name || "",
+      address: hospital.address || "",
+      phone: hospital.phone || "",
+      description: hospital.description || "",
       latitude: lat.toString(),
       longitude: lng.toString(),
     });
     if (lat && lng) {
-      const coord = { lat: parseFloat(lat.toString()), lng: parseFloat(lng.toString()) };
+      const coord = {
+        lat: parseFloat(lat.toString()),
+        lng: parseFloat(lng.toString()),
+      };
       setCoordinates(coord);
       setMapCenter(coord);
     } else {
@@ -136,16 +148,16 @@ export default function HospitalsPage() {
     setIsCreateMode(false);
     setEditingHospital(null);
     setFormData({
-      name: '',
-      address: '',
-      phone: '',
-      description: '',
-      latitude: '',
-      longitude: '',
+      name: "",
+      address: "",
+      phone: "",
+      description: "",
+      latitude: "",
+      longitude: "",
     });
     setCoordinates(null);
     setMapCenter({ lat: 21.0285, lng: 105.8542 });
-    setSearchQuery('');
+    setSearchQuery("");
     setAddressSuggestions([]);
     setShowSuggestions(false);
     setErrors({});
@@ -170,11 +182,13 @@ export default function HospitalsPage() {
       setShowSuggestions(false);
       return;
     }
-    
+
     try {
       setIsSearching(true);
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchTerm)}&limit=10&addressdetails=1`
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+          searchTerm
+        )}&limit=10&addressdetails=1`
       );
       const data = await response.json();
       if (data && data.length > 0) {
@@ -185,7 +199,7 @@ export default function HospitalsPage() {
         setShowSuggestions(false);
       }
     } catch (error) {
-      console.error('Error searching address:', error);
+      console.error("Error searching address:", error);
       setAddressSuggestions([]);
       setShowSuggestions(false);
     } finally {
@@ -199,7 +213,7 @@ export default function HospitalsPage() {
     const lng = parseFloat(suggestion.lon);
     handleMapLocationSelect(lat, lng);
     setFormData({ ...formData, address: suggestion.display_name });
-    setSearchQuery('');
+    setSearchQuery("");
     setAddressSuggestions([]);
     setShowSuggestions(false);
   };
@@ -220,22 +234,22 @@ export default function HospitalsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validation
     const newErrors: any = {};
     if (!formData.name) {
-      newErrors.name = 'Tên cơ sở là bắt buộc';
+      newErrors.name = "Tên cơ sở là bắt buộc";
     }
     if (!formData.address) {
-      newErrors.address = 'Địa chỉ là bắt buộc';
+      newErrors.address = "Địa chỉ là bắt buộc";
     }
     if (!formData.phone) {
-      newErrors.phone = 'Số điện thoại là bắt buộc';
+      newErrors.phone = "Số điện thoại là bắt buộc";
     }
     if (!coordinates && !formData.latitude && !formData.longitude) {
-      newErrors.location = 'Vui lòng chọn vị trí trên bản đồ';
+      newErrors.location = "Vui lòng chọn vị trí trên bản đồ";
     }
-    
+
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) {
       return;
@@ -244,7 +258,7 @@ export default function HospitalsPage() {
     try {
       setIsSubmitting(true);
       const clinicApi = getClinicManagement();
-      
+
       // Prepare request body with latitude and longitude
       const requestBody: any = {
         name: formData.name,
@@ -265,19 +279,27 @@ export default function HospitalsPage() {
       if (isCreateMode) {
         // Create new clinic
         await clinicApi.createClinic(requestBody);
-        alert('Tạo cơ sở thành công!');
+        alert("Tạo cơ sở thành công!");
       } else {
         // Update existing clinic
         await clinicApi.updateClinic(editingHospital.id, requestBody);
-        alert('Cập nhật cơ sở thành công!');
+        alert("Cập nhật cơ sở thành công!");
       }
-      
+
       // Reload danh sách sau khi create/update
       await loadHospitals();
       handleCloseModal();
     } catch (error: any) {
-      console.error(`Error ${isCreateMode ? 'creating' : 'updating'} hospital:`, error);
-      const errorMessage = error?.response?.data?.message || error?.message || `Có lỗi xảy ra khi ${isCreateMode ? 'tạo' : 'cập nhật'} cơ sở. Vui lòng thử lại!`;
+      console.error(
+        `Error ${isCreateMode ? "creating" : "updating"} hospital:`,
+        error
+      );
+      const errorMessage =
+        error?.response?.data?.message ||
+        error?.message ||
+        `Có lỗi xảy ra khi ${
+          isCreateMode ? "tạo" : "cập nhật"
+        } cơ sở. Vui lòng thử lại!`;
       setErrors({ submit: errorMessage });
     } finally {
       setIsSubmitting(false);
@@ -286,8 +308,8 @@ export default function HospitalsPage() {
 
   useEffect(() => {
     // Add responsive styles for modal
-    const style = document.createElement('style');
-    style.id = 'hospital-modal-styles';
+    const style = document.createElement("style");
+    style.id = "hospital-modal-styles";
     style.textContent = `
       @media (max-width: 768px) {
         .modal-dialog.modal-xl {
@@ -314,11 +336,11 @@ export default function HospitalsPage() {
         border-top: 1px solid #dee2e6 !important;
       }
     `;
-    if (!document.getElementById('hospital-modal-styles')) {
+    if (!document.getElementById("hospital-modal-styles")) {
       document.head.appendChild(style);
     }
     return () => {
-      const existingStyle = document.getElementById('hospital-modal-styles');
+      const existingStyle = document.getElementById("hospital-modal-styles");
       if (existingStyle) {
         document.head.removeChild(existingStyle);
       }
@@ -329,10 +351,7 @@ export default function HospitalsPage() {
     <div>
       <div className="d-flex justify-content-between align-items-center mb-4">
         <h2>Danh sách cơ sở</h2>
-        <button 
-          className="btn btn-primary"
-          onClick={handleCreate}
-        >
+        <button className="btn btn-primary" onClick={handleCreate}>
           <i className="fa fa-plus me-2"></i>Đăng ký cơ sở mới
         </button>
       </div>
@@ -367,20 +386,20 @@ export default function HospitalsPage() {
                   {hospitals.map((hospital) => (
                     <tr key={hospital.id}>
                       <td>{hospital.id}</td>
-                      <td>{hospital.name || 'N/A'}</td>
-                      <td>{hospital.address || 'N/A'}</td>
-                      <td>{hospital.phone || 'N/A'}</td>
+                      <td>{hospital.name || "N/A"}</td>
+                      <td>{hospital.address || "N/A"}</td>
+                      <td>{hospital.phone || "N/A"}</td>
                       <td>
                         <span className="badge bg-success">Active</span>
                       </td>
                       <td>
-                        <button 
+                        <button
                           className="btn btn-sm btn-primary me-2"
                           onClick={() => handleEdit(hospital)}
                         >
                           <i className="fa fa-edit"></i>
                         </button>
-                        <button 
+                        <button
                           className="btn btn-sm btn-danger"
                           onClick={() => handleDelete(hospital.id!)}
                         >
@@ -398,9 +417,13 @@ export default function HospitalsPage() {
 
       {/* Create/Edit Modal */}
       {showModal && (
-        <div 
-          className="modal fade show" 
-          style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}
+        <div
+          className="modal fade show"
+          style={{
+            display: "block",
+            backgroundColor: "rgba(0,0,0,0.5)",
+            zIndex: 1050,
+          }}
           tabIndex={-1}
           onClick={(e) => {
             if (e.target === e.currentTarget) {
@@ -408,22 +431,29 @@ export default function HospitalsPage() {
             }
           }}
         >
-          <div 
+          <div
             className="modal-dialog modal-xl modal-dialog-scrollable"
-            style={{ 
-              maxWidth: '95vw', 
-              height: '95vh', 
-              margin: '2.5vh auto',
-              maxHeight: '95vh',
-              display: 'flex',
-              flexDirection: 'column'
+            style={{
+              maxWidth: "95vw",
+              height: "95vh",
+              margin: "2.5vh auto",
+              maxHeight: "95vh",
+              display: "flex",
+              flexDirection: "column",
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="modal-content" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <div
+              className="modal-content"
+              style={{
+                height: "100%",
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
               <div className="modal-header" style={{ flexShrink: 0 }}>
                 <h5 className="modal-title">
-                  {isCreateMode ? 'Đăng ký cơ sở mới' : 'Chỉnh sửa cơ sở'}
+                  {isCreateMode ? "Đăng ký cơ sở mới" : "Chỉnh sửa cơ sở"}
                 </h5>
                 <button
                   type="button"
@@ -432,21 +462,38 @@ export default function HospitalsPage() {
                   aria-label="Close"
                 ></button>
               </div>
-              <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-                <div className="modal-body" style={{ flex: '1 1 auto', overflowY: 'auto', minHeight: 0 }}>
+              <form
+                onSubmit={handleSubmit}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  height: "100%",
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  className="modal-body"
+                  style={{ flex: "1 1 auto", overflowY: "auto", minHeight: 0 }}
+                >
                   <div className="mb-3">
                     <label htmlFor="edit-name" className="form-label">
                       Tên cơ sở <span className="text-danger">*</span>
                     </label>
                     <input
                       type="text"
-                      className={`form-control ${errors.name ? 'is-invalid' : ''}`}
+                      className={`form-control ${
+                        errors.name ? "is-invalid" : ""
+                      }`}
                       id="edit-name"
                       value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, name: e.target.value })
+                      }
                       required
                     />
-                    {errors.name && <div className="invalid-feedback">{errors.name}</div>}
+                    {errors.name && (
+                      <div className="invalid-feedback">{errors.name}</div>
+                    )}
                   </div>
 
                   <div className="mb-3">
@@ -455,13 +502,19 @@ export default function HospitalsPage() {
                     </label>
                     <input
                       type="text"
-                      className={`form-control ${errors.address ? 'is-invalid' : ''}`}
+                      className={`form-control ${
+                        errors.address ? "is-invalid" : ""
+                      }`}
                       id="edit-address"
                       value={formData.address}
-                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, address: e.target.value })
+                      }
                       required
                     />
-                    {errors.address && <div className="invalid-feedback">{errors.address}</div>}
+                    {errors.address && (
+                      <div className="invalid-feedback">{errors.address}</div>
+                    )}
                   </div>
 
                   <div className="mb-3">
@@ -470,13 +523,19 @@ export default function HospitalsPage() {
                     </label>
                     <input
                       type="tel"
-                      className={`form-control ${errors.phone ? 'is-invalid' : ''}`}
+                      className={`form-control ${
+                        errors.phone ? "is-invalid" : ""
+                      }`}
                       id="edit-phone"
                       value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({ ...formData, phone: e.target.value })
+                      }
                       required
                     />
-                    {errors.phone && <div className="invalid-feedback">{errors.phone}</div>}
+                    {errors.phone && (
+                      <div className="invalid-feedback">{errors.phone}</div>
+                    )}
                   </div>
 
                   <div className="mb-3">
@@ -488,7 +547,12 @@ export default function HospitalsPage() {
                       id="edit-description"
                       rows={4}
                       value={formData.description}
-                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          description: e.target.value,
+                        })
+                      }
                     ></textarea>
                   </div>
 
@@ -498,187 +562,233 @@ export default function HospitalsPage() {
                       Vị trí trên bản đồ <span className="text-danger">*</span>
                     </label>
                     <div className="mb-2">
-                        <div className="mb-2 position-relative address-search-container">
-                          <div className="input-group">
-                            <input
-                              type="text"
-                              className="form-control"
-                              placeholder="Tìm kiếm địa chỉ (VD: 123 Đường ABC, Quận XYZ, Hà Nội)"
-                              value={searchQuery}
-                              onChange={(e) => {
-                                setSearchQuery(e.target.value);
+                      <div className="mb-2 position-relative address-search-container">
+                        <div className="input-group">
+                          <input
+                            type="text"
+                            className="form-control"
+                            placeholder="Tìm kiếm địa chỉ (VD: 123 Đường ABC, Quận XYZ, Hà Nội)"
+                            value={searchQuery}
+                            onChange={(e) => {
+                              setSearchQuery(e.target.value);
+                              setShowSuggestions(true);
+                            }}
+                            onFocus={() => {
+                              if (addressSuggestions.length > 0) {
                                 setShowSuggestions(true);
-                              }}
-                              onFocus={() => {
+                              }
+                            }}
+                            onKeyPress={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
                                 if (addressSuggestions.length > 0) {
-                                  setShowSuggestions(true);
+                                  handleSelectSuggestion(addressSuggestions[0]);
+                                } else {
+                                  handleSearchAddress();
                                 }
-                              }}
-                              onKeyPress={(e) => {
-                                if (e.key === 'Enter') {
-                                  e.preventDefault();
-                                  if (addressSuggestions.length > 0) {
-                                    handleSelectSuggestion(addressSuggestions[0]);
-                                  } else {
-                                    handleSearchAddress();
-                                  }
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            onClick={() => handleSearchAddress()}
+                            disabled={isSearching || !searchQuery}
+                          >
+                            {isSearching ? (
+                              <span
+                                className="spinner-border spinner-border-sm"
+                                role="status"
+                              ></span>
+                            ) : (
+                              <i className="fa fa-search"></i>
+                            )}
+                          </button>
+                        </div>
+                        {showSuggestions && addressSuggestions.length > 0 && (
+                          <div
+                            className="list-group position-absolute w-100"
+                            style={{
+                              zIndex: 1000,
+                              maxHeight: "300px",
+                              overflowY: "auto",
+                              marginTop: "2px",
+                              boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+                              borderRadius: "4px",
+                            }}
+                          >
+                            {addressSuggestions.map((suggestion, index) => (
+                              <button
+                                key={index}
+                                type="button"
+                                className="list-group-item list-group-item-action text-start"
+                                onClick={() =>
+                                  handleSelectSuggestion(suggestion)
                                 }
-                              }}
-                            />
-                            <button
-                              type="button"
-                              className="btn btn-primary"
-                              onClick={() => handleSearchAddress()}
-                              disabled={isSearching || !searchQuery}
-                            >
-                              {isSearching ? (
-                                <span className="spinner-border spinner-border-sm" role="status"></span>
-                              ) : (
-                                <i className="fa fa-search"></i>
-                              )}
-                            </button>
-                          </div>
-                          {showSuggestions && addressSuggestions.length > 0 && (
-                            <div 
-                              className="list-group position-absolute w-100"
-                              style={{
-                                zIndex: 1000,
-                                maxHeight: '300px',
-                                overflowY: 'auto',
-                                marginTop: '2px',
-                                boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-                                borderRadius: '4px'
-                              }}
-                            >
-                              {addressSuggestions.map((suggestion, index) => (
-                                <button
-                                  key={index}
-                                  type="button"
-                                  className="list-group-item list-group-item-action text-start"
-                                  onClick={() => handleSelectSuggestion(suggestion)}
-                                  style={{ cursor: 'pointer' }}
-                                  onMouseEnter={(e) => {
-                                    e.currentTarget.style.backgroundColor = '#f8f9fa';
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    e.currentTarget.style.backgroundColor = 'white';
-                                  }}
-                                >
-                                  <div className="d-flex align-items-start">
-                                    <i className="fa fa-map-marker-alt text-danger me-2 mt-1"></i>
-                                    <div className="flex-grow-1">
-                                      <div className="fw-bold small">{suggestion.display_name}</div>
-                                      {suggestion.address && (
-                                        <div className="text-muted" style={{ fontSize: '0.85rem' }}>
-                                          {[
-                                            suggestion.address.road,
-                                            suggestion.address.quarter,
-                                            suggestion.address.suburb,
-                                            suggestion.address.city,
-                                            suggestion.address.country
-                                          ].filter(Boolean).join(', ')}
-                                        </div>
-                                      )}
+                                style={{ cursor: "pointer" }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.backgroundColor =
+                                    "#f8f9fa";
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.backgroundColor =
+                                    "white";
+                                }}
+                              >
+                                <div className="d-flex align-items-start">
+                                  <i className="fa fa-map-marker-alt text-danger me-2 mt-1"></i>
+                                  <div className="flex-grow-1">
+                                    <div className="fw-bold small">
+                                      {suggestion.display_name}
                                     </div>
+                                    {suggestion.address && (
+                                      <div
+                                        className="text-muted"
+                                        style={{ fontSize: "0.85rem" }}
+                                      >
+                                        {[
+                                          suggestion.address.road,
+                                          suggestion.address.quarter,
+                                          suggestion.address.suburb,
+                                          suggestion.address.city,
+                                          suggestion.address.country,
+                                        ]
+                                          .filter(Boolean)
+                                          .join(", ")}
+                                      </div>
+                                    )}
                                   </div>
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                          {showSuggestions && addressSuggestions.length === 0 && searchQuery && searchQuery.length >= 2 && !isSearching && (
-                            <div 
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {showSuggestions &&
+                          addressSuggestions.length === 0 &&
+                          searchQuery &&
+                          searchQuery.length >= 2 &&
+                          !isSearching && (
+                            <div
                               className="position-absolute w-100 bg-white border rounded p-2"
                               style={{
                                 zIndex: 1000,
-                                marginTop: '2px',
-                                boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                                marginTop: "2px",
+                                boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
                               }}
                             >
                               <div className="text-muted text-center small">
                                 <i className="fa fa-info-circle me-1"></i>
-                                Không tìm thấy địa chỉ. Vui lòng thử lại với từ khóa khác.
+                                Không tìm thấy địa chỉ. Vui lòng thử lại với từ
+                                khóa khác.
                               </div>
                             </div>
                           )}
-                        </div>
-                        <div 
-                          style={{ 
-                            height: '400px', 
-                            width: '100%', 
-                            borderRadius: '8px',
-                            overflow: 'hidden',
-                            border: '2px solid #dc3545',
-                            position: 'relative',
-                            cursor: 'crosshair'
-                          }}
-                          onClick={(e) => {
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            const x = e.clientX - rect.left;
-                            const y = e.clientY - rect.top;
-                            const width = rect.width;
-                            const height = rect.height;
-                            
-                            // Convert click position to lat/lng using Mercator projection approximation
-                            const centerLng = coordinates ? coordinates.lng : mapCenter.lng;
-                            const centerLat = coordinates ? coordinates.lat : mapCenter.lat;
-                            
-                            // Bbox dimensions (in degrees)
-                            const bboxWidth = 0.02;
-                            const bboxHeight = 0.02;
-                            
-                            // Calculate offset from center
-                            const lngOffset = ((x / width) - 0.5) * bboxWidth;
-                            // Latitude is inverted (top is higher lat)
-                            const latOffset = (0.5 - (y / height)) * bboxHeight;
-                            
-                            const newLng = centerLng + lngOffset;
-                            const newLat = centerLat + latOffset;
-                            
-                            handleMapLocationSelect(newLat, newLng);
-                          }}
-                        >
+                      </div>
+                      <div
+                        style={{
+                          height: "400px",
+                          width: "100%",
+                          borderRadius: "8px",
+                          overflow: "hidden",
+                          border: "2px solid #dc3545",
+                          position: "relative",
+                          cursor: "crosshair",
+                        }}
+                        onClick={(e) => {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const x = e.clientX - rect.left;
+                          const y = e.clientY - rect.top;
+                          const width = rect.width;
+                          const height = rect.height;
+
+                          // Convert click position to lat/lng using Mercator projection approximation
+                          const centerLng = coordinates
+                            ? coordinates.lng
+                            : mapCenter.lng;
+                          const centerLat = coordinates
+                            ? coordinates.lat
+                            : mapCenter.lat;
+
+                          // Bbox dimensions (in degrees)
+                          const bboxWidth = 0.02;
+                          const bboxHeight = 0.02;
+
+                          // Calculate offset from center
+                          const lngOffset = (x / width - 0.5) * bboxWidth;
+                          // Latitude is inverted (top is higher lat)
+                          const latOffset = (0.5 - y / height) * bboxHeight;
+
+                          const newLng = centerLng + lngOffset;
+                          const newLat = centerLat + latOffset;
+
+                          handleMapLocationSelect(newLat, newLng);
+                        }}
+                      >
                         <iframe
                           width="100%"
                           height="100%"
                           frameBorder="0"
-                          style={{ border: 0, pointerEvents: 'none' }}
-                          src={`https://www.openstreetmap.org/export/embed.html?bbox=${(coordinates ? coordinates.lng : mapCenter.lng) - 0.01},${(coordinates ? coordinates.lat : mapCenter.lat) - 0.01},${(coordinates ? coordinates.lng : mapCenter.lng) + 0.01},${(coordinates ? coordinates.lat : mapCenter.lat) + 0.01}&layer=mapnik&marker=${coordinates ? `${coordinates.lat},${coordinates.lng}` : `${mapCenter.lat},${mapCenter.lng}`}`}
+                          style={{ border: 0, pointerEvents: "none" }}
+                          src={`https://www.openstreetmap.org/export/embed.html?bbox=${
+                            (coordinates ? coordinates.lng : mapCenter.lng) -
+                            0.01
+                          },${
+                            (coordinates ? coordinates.lat : mapCenter.lat) -
+                            0.01
+                          },${
+                            (coordinates ? coordinates.lng : mapCenter.lng) +
+                            0.01
+                          },${
+                            (coordinates ? coordinates.lat : mapCenter.lat) +
+                            0.01
+                          }&layer=mapnik&marker=${
+                            coordinates
+                              ? `${coordinates.lat},${coordinates.lng}`
+                              : `${mapCenter.lat},${mapCenter.lng}`
+                          }`}
                           allowFullScreen
                         ></iframe>
-                        <div 
+                        <div
                           className="position-absolute w-100 h-100"
                           style={{
                             top: 0,
                             left: 0,
                             zIndex: 10,
-                            cursor: 'crosshair'
+                            cursor: "crosshair",
                           }}
                         ></div>
                         {coordinates && (
-                          <div 
+                          <div
                             className="position-absolute"
                             style={{
-                              top: '50%',
-                              left: '50%',
-                              transform: 'translate(-50%, -50%)',
+                              top: "50%",
+                              left: "50%",
+                              transform: "translate(-50%, -50%)",
                               zIndex: 15,
-                              pointerEvents: 'none'
+                              pointerEvents: "none",
                             }}
                           >
-                            <i className="fa fa-map-marker-alt text-danger" style={{ fontSize: '40px', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))' }}></i>
+                            <i
+                              className="fa fa-map-marker-alt text-danger"
+                              style={{
+                                fontSize: "40px",
+                                filter:
+                                  "drop-shadow(0 2px 4px rgba(0,0,0,0.5))",
+                              }}
+                            ></i>
                           </div>
                         )}
-                        <div 
+                        <div
                           className="position-absolute"
                           style={{
-                            top: '10px',
-                            left: '10px',
+                            top: "10px",
+                            left: "10px",
                             zIndex: 20,
-                            backgroundColor: 'rgba(255,255,255,0.9)',
-                            padding: '8px 12px',
-                            borderRadius: '4px',
-                            fontSize: '12px',
-                            pointerEvents: 'none'
+                            backgroundColor: "rgba(255,255,255,0.9)",
+                            padding: "8px 12px",
+                            borderRadius: "4px",
+                            fontSize: "12px",
+                            pointerEvents: "none",
                           }}
                         >
                           <i className="fa fa-info-circle me-1 text-primary"></i>
@@ -698,7 +808,9 @@ export default function HospitalsPage() {
                                   handleMapLocationSelect(lat, lng);
                                 },
                                 () => {
-                                  alert('Không thể lấy vị trí hiện tại. Vui lòng chọn trên bản đồ.');
+                                  alert(
+                                    "Không thể lấy vị trí hiện tại. Vui lòng chọn trên bản đồ."
+                                  );
                                 }
                               );
                             }
@@ -710,13 +822,17 @@ export default function HospitalsPage() {
                         <button
                           type="button"
                           className="btn btn-sm btn-outline-primary"
-                          onClick={handleSearchAddress}
+                          onClick={() => handleSearchAddress()}
                         >
                           <i className="fa fa-search me-1"></i>
                           Tìm từ địa chỉ
                         </button>
                         <a
-                          href={`https://www.google.com/maps/search/?api=1&query=${coordinates ? `${coordinates.lat},${coordinates.lng}` : `${mapCenter.lat},${mapCenter.lng}`}`}
+                          href={`https://www.google.com/maps/search/?api=1&query=${
+                            coordinates
+                              ? `${coordinates.lat},${coordinates.lng}`
+                              : `${mapCenter.lat},${mapCenter.lng}`
+                          }`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="btn btn-sm btn-outline-danger"
@@ -737,9 +853,15 @@ export default function HospitalsPage() {
                           onChange={(e) => {
                             const lat = parseFloat(e.target.value);
                             if (!isNaN(lat)) {
-                              handleMapLocationSelect(lat, coordinates?.lng || mapCenter.lng);
+                              handleMapLocationSelect(
+                                lat,
+                                coordinates?.lng || mapCenter.lng
+                              );
                             } else {
-                              setFormData({ ...formData, latitude: e.target.value });
+                              setFormData({
+                                ...formData,
+                                latitude: e.target.value,
+                              });
                             }
                           }}
                           placeholder="21.0285"
@@ -755,9 +877,15 @@ export default function HospitalsPage() {
                           onChange={(e) => {
                             const lng = parseFloat(e.target.value);
                             if (!isNaN(lng)) {
-                              handleMapLocationSelect(coordinates?.lat || mapCenter.lat, lng);
+                              handleMapLocationSelect(
+                                coordinates?.lat || mapCenter.lat,
+                                lng
+                              );
                             } else {
-                              setFormData({ ...formData, longitude: e.target.value });
+                              setFormData({
+                                ...formData,
+                                longitude: e.target.value,
+                              });
                             }
                           }}
                           placeholder="105.8542"
@@ -765,14 +893,17 @@ export default function HospitalsPage() {
                       </div>
                     </div>
                     <small className="text-muted">
-                      Click vào bản đồ hoặc nhập tọa độ để chọn vị trí. Vị trí là bắt buộc để hệ thống có thể tìm phòng khám gần nhất.
+                      Click vào bản đồ hoặc nhập tọa độ để chọn vị trí. Vị trí
+                      là bắt buộc để hệ thống có thể tìm phòng khám gần nhất.
                     </small>
-                    {(!coordinates && !formData.latitude && !formData.longitude) && (
-                      <div className="text-danger small mt-1">
-                        <i className="fa fa-exclamation-circle me-1"></i>
-                        Vui lòng chọn vị trí trên bản đồ
-                      </div>
-                    )}
+                    {!coordinates &&
+                      !formData.latitude &&
+                      !formData.longitude && (
+                        <div className="text-danger small mt-1">
+                          <i className="fa fa-exclamation-circle me-1"></i>
+                          Vui lòng chọn vị trí trên bản đồ
+                        </div>
+                      )}
                   </div>
 
                   {errors.submit && (
@@ -781,7 +912,14 @@ export default function HospitalsPage() {
                     </div>
                   )}
                 </div>
-                <div className="modal-footer" style={{ flexShrink: 0, borderTop: '1px solid #dee2e6', padding: '1rem' }}>
+                <div
+                  className="modal-footer"
+                  style={{
+                    flexShrink: 0,
+                    borderTop: "1px solid #dee2e6",
+                    padding: "1rem",
+                  }}
+                >
                   <button
                     type="button"
                     className="btn btn-secondary"
@@ -790,18 +928,24 @@ export default function HospitalsPage() {
                   >
                     Đóng
                   </button>
-                  <button 
-                    type="submit" 
-                    className="btn btn-primary" 
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
                     disabled={isSubmitting}
                   >
                     {isSubmitting ? (
                       <>
-                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                        {isCreateMode ? 'Đang tạo...' : 'Đang lưu...'}
+                        <span
+                          className="spinner-border spinner-border-sm me-2"
+                          role="status"
+                          aria-hidden="true"
+                        ></span>
+                        {isCreateMode ? "Đang tạo..." : "Đang lưu..."}
                       </>
+                    ) : isCreateMode ? (
+                      "Tạo"
                     ) : (
-                      isCreateMode ? 'Tạo' : 'Lưu'
+                      "Lưu"
                     )}
                   </button>
                 </div>
@@ -813,4 +957,3 @@ export default function HospitalsPage() {
     </div>
   );
 }
-

@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getEmergencyManagement } from '@/generated/api/endpoints/emergency-management/emergency-management';
 import { getDoctorManagement } from '@/generated/api/endpoints/doctor-management/doctor-management';
-import { getUser } from '@/utils/auth';
+import { getUser, getToken } from '@/utils/auth';
+import axios from 'axios';
 import type { EmergencyResponse } from '@/generated/api/models';
 
 export default function EmergencyPage() {
@@ -14,6 +15,16 @@ export default function EmergencyPage() {
   const [doctorId, setDoctorId] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>(''); // Filter by status
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [isCreatingAppointment, setIsCreatingAppointment] = useState(false);
+  const [showCreateAppointmentModal, setShowCreateAppointmentModal] = useState(false);
+  const [appointmentForm, setAppointmentForm] = useState({
+    appointmentTime: '',
+    durationMinutes: 60,
+    age: '',
+    gender: '',
+    symptoms: '',
+  });
 
   // Get doctor ID from user
   useEffect(() => {
@@ -192,6 +203,116 @@ export default function EmergencyPage() {
     } catch {
       return dateString;
     }
+  };
+
+  const handleDoctorConfirm = async () => {
+    if (!selectedEmergency?.id) return;
+
+    try {
+      setIsConfirming(true);
+      const token = getToken();
+
+      await axios.post(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/api/emergencies/${selectedEmergency.id}/doctor-confirm`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      await loadEmergencies();
+      if (selectedEmergency.id) {
+        await loadEmergencyDetails(selectedEmergency.id);
+      }
+      alert("Đã xác nhận cấp cứu thành công!");
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || error?.message || "Có lỗi xảy ra";
+      alert("Lỗi: " + errorMessage);
+    } finally {
+      setIsConfirming(false);
+    }
+  };
+
+  const handleCreateAppointment = async () => {
+    if (!selectedEmergency?.id) return;
+
+    try {
+      setIsCreatingAppointment(true);
+      const token = getToken();
+
+      const requestBody: any = {};
+      if (appointmentForm.appointmentTime) {
+        // Remove timezone offset if present (LocalDateTime doesn't support timezone)
+        // datetime-local input returns format: YYYY-MM-DDTHH:mm
+        // Ensure format is YYYY-MM-DDTHH:mm:ss (add seconds if missing)
+        let appointmentTimeStr = appointmentForm.appointmentTime;
+        // Remove timezone offset if present (+07:00, +07:00:00, etc.)
+        appointmentTimeStr = appointmentTimeStr.replace(/[+-]\d{2}:\d{2}(:\d{2})?$/, '');
+        // Add seconds if missing (format should be YYYY-MM-DDTHH:mm:ss)
+        if (!appointmentTimeStr.includes(':', appointmentTimeStr.lastIndexOf('T') + 1)) {
+          // Only one colon after T, need to add seconds
+          appointmentTimeStr = appointmentTimeStr.replace(/(\d{2}:\d{2})$/, '$1:00');
+        } else if (appointmentTimeStr.match(/T\d{2}:\d{2}$/)) {
+          // Has HH:mm but no seconds
+          appointmentTimeStr = appointmentTimeStr + ':00';
+        }
+        requestBody.appointmentTime = appointmentTimeStr;
+      }
+      if (appointmentForm.durationMinutes) {
+        requestBody.durationMinutes = appointmentForm.durationMinutes;
+      }
+      if (appointmentForm.age) {
+        requestBody.age = parseInt(appointmentForm.age);
+      }
+      if (appointmentForm.gender) {
+        requestBody.gender = appointmentForm.gender;
+      }
+      if (appointmentForm.symptoms) {
+        requestBody.symptoms = appointmentForm.symptoms;
+      }
+
+      await axios.post(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/api/emergencies/${selectedEmergency.id}/create-appointment`,
+        requestBody,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      setShowCreateAppointmentModal(false);
+      setAppointmentForm({
+        appointmentTime: '',
+        durationMinutes: 60,
+        age: '',
+        gender: '',
+        symptoms: '',
+      });
+      alert("Đã tạo lịch khám thành công!");
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || error?.message || "Có lỗi xảy ra";
+      alert("Lỗi: " + errorMessage);
+    } finally {
+      setIsCreatingAppointment(false);
+    }
+  };
+
+  const canDoctorConfirm = (emergency: EmergencyResponse | null) => {
+    if (!emergency) return false;
+    return emergency.status === 'ASSIGNED' || 
+           emergency.status === 'EN_ROUTE' || 
+           emergency.status === 'ARRIVED';
+  };
+
+  const canCreateAppointment = (emergency: EmergencyResponse | null) => {
+    if (!emergency) return false;
+    return emergency.status === 'ARRIVED' || 
+           emergency.status === 'COMPLETED';
   };
 
   return (
@@ -457,12 +578,190 @@ export default function EmergencyPage() {
                 )}
               </div>
               <div className="modal-footer">
+                {canDoctorConfirm(selectedEmergency) && (
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={handleDoctorConfirm}
+                    disabled={isConfirming}
+                  >
+                    {isConfirming ? (
+                      <>
+                        <i className="fa fa-spinner fa-spin me-2"></i>
+                        Đang xử lý...
+                      </>
+                    ) : (
+                      <>
+                        <i className="fa fa-check-circle me-2"></i>
+                        Xác nhận cấp cứu
+                      </>
+                    )}
+                  </button>
+                )}
+                {canCreateAppointment(selectedEmergency) && (
+                  <button
+                    type="button"
+                    className="btn btn-success"
+                    onClick={() => setShowCreateAppointmentModal(true)}
+                    disabled={isCreatingAppointment}
+                  >
+                    <i className="fa fa-stethoscope me-2"></i>
+                    Khám bệnh
+                  </button>
+                )}
                 <button
                   type="button"
                   className="btn btn-secondary"
                   onClick={() => setSelectedEmergency(null)}
                 >
                   Đóng
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Appointment Modal */}
+      {showCreateAppointmentModal && selectedEmergency && (
+        <div
+          className="modal fade show"
+          style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }}
+          tabIndex={-1}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowCreateAppointmentModal(false);
+            }
+          }}
+        >
+          <div className="modal-dialog modal-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content">
+              <div className="modal-header bg-success text-white">
+                <h5 className="modal-title">
+                  <i className="fa fa-stethoscope me-2"></i>
+                  Tạo lịch khám từ ca cấp cứu #{selectedEmergency.id}
+                </h5>
+                <button
+                  type="button"
+                  className="btn-close btn-close-white"
+                  onClick={() => setShowCreateAppointmentModal(false)}
+                ></button>
+              </div>
+              <div className="modal-body">
+                <div className="mb-3">
+                  <label className="form-label">
+                    <i className="fa fa-calendar me-2"></i>
+                    Thời gian khám (mặc định: ngay bây giờ):
+                  </label>
+                  <input
+                    type="datetime-local"
+                    className="form-control"
+                    value={appointmentForm.appointmentTime}
+                    onChange={(e) =>
+                      setAppointmentForm({
+                        ...appointmentForm,
+                        appointmentTime: e.target.value,
+                      })
+                    }
+                  />
+                  <small className="text-muted">
+                    Để trống để sử dụng thời gian hiện tại
+                  </small>
+                </div>
+                <div className="mb-3">
+                  <label className="form-label">
+                    <i className="fa fa-clock me-2"></i>
+                    Thời lượng khám (phút):
+                  </label>
+                  <input
+                    type="number"
+                    className="form-control"
+                    value={appointmentForm.durationMinutes}
+                    onChange={(e) =>
+                      setAppointmentForm({
+                        ...appointmentForm,
+                        durationMinutes: parseInt(e.target.value) || 60,
+                      })
+                    }
+                    min="15"
+                    max="180"
+                  />
+                </div>
+                <div className="row">
+                  <div className="col-md-6 mb-3">
+                    <label className="form-label">Tuổi:</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      value={appointmentForm.age}
+                      onChange={(e) =>
+                        setAppointmentForm({
+                          ...appointmentForm,
+                          age: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="col-md-6 mb-3">
+                    <label className="form-label">Giới tính:</label>
+                    <select
+                      className="form-select"
+                      value={appointmentForm.gender}
+                      onChange={(e) =>
+                        setAppointmentForm({
+                          ...appointmentForm,
+                          gender: e.target.value,
+                        })
+                      }
+                    >
+                      <option value="">Chọn giới tính</option>
+                      <option value="MALE">Nam</option>
+                      <option value="FEMALE">Nữ</option>
+                      <option value="OTHER">Khác</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="mb-3">
+                  <label className="form-label">Triệu chứng/Ghi chú:</label>
+                  <textarea
+                    className="form-control"
+                    rows={3}
+                    value={appointmentForm.symptoms}
+                    onChange={(e) =>
+                      setAppointmentForm({
+                        ...appointmentForm,
+                        symptoms: e.target.value,
+                      })
+                    }
+                    placeholder="Nhập triệu chứng hoặc ghi chú khám bệnh..."
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setShowCreateAppointmentModal(false)}
+                >
+                  Hủy
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-success"
+                  onClick={handleCreateAppointment}
+                  disabled={isCreatingAppointment}
+                >
+                  {isCreatingAppointment ? (
+                    <>
+                      <i className="fa fa-spinner fa-spin me-2"></i>
+                      Đang tạo...
+                    </>
+                  ) : (
+                    <>
+                      <i className="fa fa-check me-2"></i>
+                      Tạo lịch khám
+                    </>
+                  )}
                 </button>
               </div>
             </div>

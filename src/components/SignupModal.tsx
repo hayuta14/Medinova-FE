@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { setToken, setUser } from '@/utils/auth';
-import { getAuthentication } from '@/generated/api/endpoints/authentication/authentication';
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { setToken, setUser } from "@/utils/auth";
+import { getAuthentication } from "@/generated/api/endpoints/authentication/authentication";
 
 interface SignupModalProps {
   show: boolean;
@@ -11,12 +11,16 @@ interface SignupModalProps {
   onSwitchToLogin: () => void;
 }
 
-export default function SignupModal({ show, onHide, onSwitchToLogin }: SignupModalProps) {
+export default function SignupModal({
+  show,
+  onHide,
+  onSwitchToLogin,
+}: SignupModalProps) {
   const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
   const [errors, setErrors] = useState<{
     email?: string;
     password?: string;
@@ -40,19 +44,19 @@ export default function SignupModal({ show, onHide, onSwitchToLogin }: SignupMod
     } = {};
 
     if (!email) {
-      newErrors.email = 'Email is required';
+      newErrors.email = "Email is required";
     } else if (!validateEmail(email)) {
-      newErrors.email = 'Email should be valid';
+      newErrors.email = "Email should be valid";
     }
 
     if (!password) {
-      newErrors.password = 'Password is required';
+      newErrors.password = "Password is required";
     } else if (password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
+      newErrors.password = "Password must be at least 6 characters";
     }
 
     if (!fullName) {
-      newErrors.fullName = 'Full name is required';
+      newErrors.fullName = "Full name is required";
     }
 
     setErrors(newErrors);
@@ -62,28 +66,31 @@ export default function SignupModal({ show, onHide, onSwitchToLogin }: SignupMod
       try {
         const authApi = getAuthentication();
         const response = await authApi.register({
-            email,
-            password,
-            fullName,
-            phone: phone || undefined,
+          email,
+          password,
+          fullName,
+          phone: phone || undefined,
         });
 
-          // Handle successful registration
-        console.log('Registration successful:', response);
-        
-        // API trả về: { success: true, message: "...", data: { token: "...", ... } }
-        const token = response.data?.token || response.token;
-        const userData = response.data || response;
-        
+        // Handle successful registration
+        console.log("Registration successful:", response);
+
+        // API function already extracts response.data, so response is the data itself
+        const token =
+          (response as any)?.data?.token ||
+          (response as any)?.token ||
+          response.token;
+        const userData = (response as any)?.data || response;
+
         // If registration returns token, save it
         if (token) {
           setToken(token);
-          
+
           // Save đầy đủ thông tin user từ API để phục vụ hiển thị
           if (userData) {
             setUser({
               token: token,
-              tokenType: userData.tokenType || 'Bearer',
+              tokenType: userData.tokenType || "Bearer",
               userId: userData.userId,
               email: userData.email,
               fullName: userData.fullName,
@@ -93,18 +100,18 @@ export default function SignupModal({ show, onHide, onSwitchToLogin }: SignupMod
             });
           }
           // Trigger custom event to update Navbar
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new Event('auth-change'));
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new Event("auth-change"));
           }
         }
-        
-          onHide();
-          // Reset form
-          setEmail('');
-          setPassword('');
-          setFullName('');
-          setPhone('');
-        
+
+        onHide();
+        // Reset form
+        setEmail("");
+        setPassword("");
+        setFullName("");
+        setPhone("");
+
         // If token received, refresh page; otherwise switch to login modal
         if (token) {
           router.refresh();
@@ -112,11 +119,12 @@ export default function SignupModal({ show, onHide, onSwitchToLogin }: SignupMod
           onSwitchToLogin();
         }
       } catch (error: any) {
-        console.error('Registration error:', error);
+        console.error("Registration error:", error);
         // Lấy message từ API response
-        const errorMessage = error?.response?.data?.message || 
-                            error?.message || 
-                            'An error occurred. Please try again.';
+        const errorMessage =
+          error?.response?.data?.message ||
+          error?.message ||
+          "An error occurred. Please try again.";
         setErrors({ email: errorMessage });
       } finally {
         setIsLoading(false);
@@ -130,12 +138,16 @@ export default function SignupModal({ show, onHide, onSwitchToLogin }: SignupMod
     <>
       <div
         className="modal fade show"
-        style={{ display: 'block' }}
+        style={{ display: "block" }}
         tabIndex={-1}
         role="dialog"
         onClick={onHide}
       >
-        <div className="modal-dialog modal-dialog-centered" role="document" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="modal-dialog modal-dialog-centered"
+          role="document"
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="modal-content">
             <div className="modal-header">
               <h5 className="modal-title">Đăng Ký</h5>
@@ -154,13 +166,17 @@ export default function SignupModal({ show, onHide, onSwitchToLogin }: SignupMod
                   </label>
                   <input
                     type="email"
-                    className={`form-control ${errors.email ? 'is-invalid' : ''}`}
+                    className={`form-control ${
+                      errors.email ? "is-invalid" : ""
+                    }`}
                     id="signupEmail"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="Nhập email của bạn"
                   />
-                  {errors.email && <div className="invalid-feedback">{errors.email}</div>}
+                  {errors.email && (
+                    <div className="invalid-feedback">{errors.email}</div>
+                  )}
                 </div>
 
                 <div className="mb-3">
@@ -169,13 +185,17 @@ export default function SignupModal({ show, onHide, onSwitchToLogin }: SignupMod
                   </label>
                   <input
                     type="password"
-                    className={`form-control ${errors.password ? 'is-invalid' : ''}`}
+                    className={`form-control ${
+                      errors.password ? "is-invalid" : ""
+                    }`}
                     id="signupPassword"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Tối thiểu 6 ký tự"
                   />
-                  {errors.password && <div className="invalid-feedback">{errors.password}</div>}
+                  {errors.password && (
+                    <div className="invalid-feedback">{errors.password}</div>
+                  )}
                 </div>
 
                 <div className="mb-3">
@@ -184,13 +204,17 @@ export default function SignupModal({ show, onHide, onSwitchToLogin }: SignupMod
                   </label>
                   <input
                     type="text"
-                    className={`form-control ${errors.fullName ? 'is-invalid' : ''}`}
+                    className={`form-control ${
+                      errors.fullName ? "is-invalid" : ""
+                    }`}
                     id="signupFullName"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     placeholder="Nhập họ và tên"
                   />
-                  {errors.fullName && <div className="invalid-feedback">{errors.fullName}</div>}
+                  {errors.fullName && (
+                    <div className="invalid-feedback">{errors.fullName}</div>
+                  )}
                 </div>
 
                 <div className="mb-3">
@@ -199,25 +223,33 @@ export default function SignupModal({ show, onHide, onSwitchToLogin }: SignupMod
                   </label>
                   <input
                     type="tel"
-                    className={`form-control ${errors.phone ? 'is-invalid' : ''}`}
+                    className={`form-control ${
+                      errors.phone ? "is-invalid" : ""
+                    }`}
                     id="signupPhone"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="Nhập số điện thoại (tùy chọn)"
                   />
-                  {errors.phone && <div className="invalid-feedback">{errors.phone}</div>}
+                  {errors.phone && (
+                    <div className="invalid-feedback">{errors.phone}</div>
+                  )}
                 </div>
 
                 <div className="d-grid gap-2">
-                  <button type="submit" className="btn btn-primary" disabled={isLoading}>
-                    {isLoading ? 'Đang đăng ký...' : 'Đăng Ký'}
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? "Đang đăng ký..." : "Đăng Ký"}
                   </button>
                 </div>
               </form>
             </div>
             <div className="modal-footer justify-content-center">
               <p className="mb-0">
-                Đã có tài khoản?{' '}
+                Đã có tài khoản?{" "}
                 <button
                   type="button"
                   className="btn btn-link p-0"
@@ -234,4 +266,3 @@ export default function SignupModal({ show, onHide, onSwitchToLogin }: SignupMod
     </>
   );
 }
-

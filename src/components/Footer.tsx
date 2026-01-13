@@ -106,30 +106,6 @@ export default function Footer() {
           </div>
         </div>
       </div>
-      <div className="container-fluid bg-dark text-light border-top border-secondary py-4">
-        <div className="container">
-          <div className="row g-5">
-            <div className="col-md-6 text-center text-md-start">
-              <p className="mb-md-0">
-                &copy; <a className="text-primary" href="#!">Your Site Name</a>. All Rights Reserved.
-              </p>
-            </div>
-            <div className="col-md-6 text-center text-md-end">
-              <p className="mb-0">
-                Designed by{' '}
-                <a className="text-primary" href="https://htmlcodex.com" target="_blank">
-                  HTML Codex
-                </a>
-                . Distributed by{' '}
-                <a href="https://themewagon.com" target="_blank">
-                  ThemeWagon
-                </a>
-                .
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
     </>
   );
 }

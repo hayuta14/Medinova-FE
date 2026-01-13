@@ -1,47 +1,60 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import Topbar from '@/components/Topbar';
-import Navbar from '@/components/Navbar';
-import Footer from '@/components/Footer';
-import BackToTop from '@/components/BackToTop';
-import LoginModal from '@/components/LoginModal';
-import SignupModal from '@/components/SignupModal';
-import { getClinicManagement } from '@/generated/api/endpoints/clinic-management/clinic-management';
-import { getDoctorManagement } from '@/generated/api/endpoints/doctor-management/doctor-management';
-import { getAppointmentManagement } from '@/generated/api/endpoints/appointment-management/appointment-management';
-import { getUser, isAuthenticated, getToken } from '@/utils/auth';
-import type { BusyScheduleResponse } from '@/generated/api/models';
-import axios from 'axios';
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import Topbar from "@/components/Topbar";
+import Navbar from "@/components/Navbar";
+import Footer from "@/components/Footer";
+import BackToTop from "@/components/BackToTop";
+import LoginModal from "@/components/LoginModal";
+import SignupModal from "@/components/SignupModal";
+import { getClinicManagement } from "@/generated/api/endpoints/clinic-management/clinic-management";
+import { getDoctorManagement } from "@/generated/api/endpoints/doctor-management/doctor-management";
+import { getAppointmentManagement } from "@/generated/api/endpoints/appointment-management/appointment-management";
+import { getUser, isAuthenticated, getToken } from "@/utils/auth";
+import type { BusyScheduleResponse } from "@/generated/api/models";
+import axios from "axios";
 
 export default function OutdoorCheckupPage() {
   const router = useRouter();
-  const [step, setStep] = useState<'clinic' | 'department' | 'doctor' | 'datetime' | 'info' | 'confirm' | 'detail'>('clinic');
+  const [step, setStep] = useState<
+    | "clinic"
+    | "department"
+    | "doctor"
+    | "datetime"
+    | "info"
+    | "confirm"
+    | "detail"
+  >("clinic");
   const [departments, setDepartments] = useState<any[]>([]);
   const [clinics, setClinics] = useState<any[]>([]);
   const [doctors, setDoctors] = useState<any[]>([]);
-  const [selectedClinic, setSelectedClinic] = useState<string>('');
-  const [selectedDepartment, setSelectedDepartment] = useState<string>('GENERAL_MEDICINE'); // Default to "Nội tổng quát" (Lâm sàng)
-  const [selectedDoctor, setSelectedDoctor] = useState<string>('');
-  const [selectedDate, setSelectedDate] = useState<string>('');
-  const [selectedTime, setSelectedTime] = useState<string>('');
+  const [selectedClinic, setSelectedClinic] = useState<string>("");
+  const [selectedDepartment, setSelectedDepartment] =
+    useState<string>("GENERAL_MEDICINE"); // Default to "Nội tổng quát" (Lâm sàng)
+  const [selectedDoctor, setSelectedDoctor] = useState<string>("");
+  const [selectedDate, setSelectedDate] = useState<string>("");
+  const [selectedTime, setSelectedTime] = useState<string>("");
   const [selectedWeek, setSelectedWeek] = useState<Date>(new Date());
   const [bookedSlots, setBookedSlots] = useState<Set<string>>(new Set());
-  const [busySchedules, setBusySchedules] = useState<BusyScheduleResponse[]>([]);
+  const [busySchedules, setBusySchedules] = useState<BusyScheduleResponse[]>(
+    []
+  );
   const [isLoadingBusySchedules, setIsLoadingBusySchedules] = useState(false);
   const [isCreatingAppointment, setIsCreatingAppointment] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [errorMessage, setErrorMessage] = useState<string>("");
   const [patientInfo, setPatientInfo] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    age: '',
-    gender: '',
-    symptoms: '',
+    name: "",
+    email: "",
+    phone: "",
+    age: "",
+    gender: "",
+    symptoms: "",
   });
-  const [appointmentId, setAppointmentId] = useState<string>('');
-  const [holdAppointmentId, setHoldAppointmentId] = useState<number | null>(null);
+  const [appointmentId, setAppointmentId] = useState<string>("");
+  const [holdAppointmentId, setHoldAppointmentId] = useState<number | null>(
+    null
+  );
   const [isHoldingSlot, setIsHoldingSlot] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showSignupModal, setShowSignupModal] = useState(false);
@@ -49,29 +62,99 @@ export default function OutdoorCheckupPage() {
   const [timeRemaining, setTimeRemaining] = useState<number>(300); // 5 minutes in seconds
   const [showTimeExpiredModal, setShowTimeExpiredModal] = useState(false);
   const [holdStartTime, setHoldStartTime] = useState<Date | null>(null);
-  const [appointmentStatus, setAppointmentStatus] = useState<string>('PENDING');
+  const [appointmentStatus, setAppointmentStatus] = useState<string>("PENDING");
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
   const [showRejectedModal, setShowRejectedModal] = useState(false);
   const [showExpiredModal, setShowExpiredModal] = useState(false);
 
   // Department enum values with display names and icons
   const departmentList = [
-    { value: 'GENERAL_MEDICINE', label: 'Nội tổng quát', icon: 'fa-stethoscope', color: 'primary' },
-    { value: 'PEDIATRICS', label: 'Nhi', icon: 'fa-child', color: 'info' },
-    { value: 'OBSTETRICS_GYNECOLOGY', label: 'Sản – Phụ', icon: 'fa-female', color: 'danger' },
-    { value: 'SURGERY', label: 'Ngoại tổng quát', icon: 'fa-cut', color: 'warning' },
-    { value: 'CARDIOLOGY', label: 'Tim mạch', icon: 'fa-heartbeat', color: 'danger' },
-    { value: 'NEUROLOGY', label: 'Thần kinh', icon: 'fa-brain', color: 'primary' },
-    { value: 'ORTHOPEDICS', label: 'Chấn thương chỉnh hình', icon: 'fa-bone', color: 'secondary' },
-    { value: 'ONCOLOGY', label: 'Ung bướu', icon: 'fa-ribbon', color: 'warning' },
-    { value: 'GASTROENTEROLOGY', label: 'Tiêu hóa', icon: 'fa-stomach', color: 'success' },
-    { value: 'RESPIRATORY', label: 'Hô hấp', icon: 'fa-lungs', color: 'info' },
-    { value: 'NEPHROLOGY', label: 'Thận', icon: 'fa-kidneys', color: 'primary' },
-    { value: 'ENDOCRINOLOGY', label: 'Nội tiết', icon: 'fa-flask', color: 'success' },
-    { value: 'HEMATOLOGY', label: 'Huyết học', icon: 'fa-tint', color: 'danger' },
-    { value: 'RHEUMATOLOGY', label: 'Cơ xương khớp', icon: 'fa-dumbbell', color: 'secondary' },
-    { value: 'DERMATOLOGY', label: 'Da liễu', icon: 'fa-hand-sparkles', color: 'warning' },
-    { value: 'INFECTIOUS_DISEASE', label: 'Truyền nhiễm', icon: 'fa-virus', color: 'danger' },
+    {
+      value: "GENERAL_MEDICINE",
+      label: "Nội tổng quát",
+      icon: "fa-stethoscope",
+      color: "primary",
+    },
+    { value: "PEDIATRICS", label: "Nhi", icon: "fa-child", color: "info" },
+    {
+      value: "OBSTETRICS_GYNECOLOGY",
+      label: "Sản – Phụ",
+      icon: "fa-female",
+      color: "danger",
+    },
+    {
+      value: "SURGERY",
+      label: "Ngoại tổng quát",
+      icon: "fa-cut",
+      color: "warning",
+    },
+    {
+      value: "CARDIOLOGY",
+      label: "Tim mạch",
+      icon: "fa-heartbeat",
+      color: "danger",
+    },
+    {
+      value: "NEUROLOGY",
+      label: "Thần kinh",
+      icon: "fa-brain",
+      color: "primary",
+    },
+    {
+      value: "ORTHOPEDICS",
+      label: "Chấn thương chỉnh hình",
+      icon: "fa-bone",
+      color: "secondary",
+    },
+    {
+      value: "ONCOLOGY",
+      label: "Ung bướu",
+      icon: "fa-ribbon",
+      color: "warning",
+    },
+    {
+      value: "GASTROENTEROLOGY",
+      label: "Tiêu hóa",
+      icon: "fa-stomach",
+      color: "success",
+    },
+    { value: "RESPIRATORY", label: "Hô hấp", icon: "fa-lungs", color: "info" },
+    {
+      value: "NEPHROLOGY",
+      label: "Thận",
+      icon: "fa-kidneys",
+      color: "primary",
+    },
+    {
+      value: "ENDOCRINOLOGY",
+      label: "Nội tiết",
+      icon: "fa-flask",
+      color: "success",
+    },
+    {
+      value: "HEMATOLOGY",
+      label: "Huyết học",
+      icon: "fa-tint",
+      color: "danger",
+    },
+    {
+      value: "RHEUMATOLOGY",
+      label: "Cơ xương khớp",
+      icon: "fa-dumbbell",
+      color: "secondary",
+    },
+    {
+      value: "DERMATOLOGY",
+      label: "Da liễu",
+      icon: "fa-hand-sparkles",
+      color: "warning",
+    },
+    {
+      value: "INFECTIOUS_DISEASE",
+      label: "Truyền nhiễm",
+      icon: "fa-virus",
+      color: "danger",
+    },
   ];
 
   const loadClinics = useCallback(async () => {
@@ -80,72 +163,96 @@ export default function OutdoorCheckupPage() {
       const response = await clinicApi.getAllClinics();
       setClinics(Array.isArray(response) ? response : []);
     } catch (error) {
-      console.error('Error loading clinics:', error);
+      console.error("Error loading clinics:", error);
       setClinics([]);
     }
   }, []);
 
-  const loadDoctors = useCallback(async (department: string, clinicId?: number) => {
-    try {
-      const doctorApi = getDoctorManagement();
-      let response;
-      
+  const loadDoctors = useCallback(
+    async (department: string, clinicId?: number) => {
       try {
-        // Try new API endpoints first (if available after regenerating)
-        if (clinicId && (doctorApi as any).getDoctorsByClinicAndDepartment) {
-          response = await (doctorApi as any).getDoctorsByClinicAndDepartment(clinicId, department);
-        } else if ((doctorApi as any).getDoctorsByDepartment) {
-          response = await (doctorApi as any).getDoctorsByDepartment(department);
-        } else {
-          // Fallback: Load all doctors by clinic and filter by department
+        const doctorApi = getDoctorManagement();
+        let response;
+
+        try {
+          // Try new API endpoints first (if available after regenerating)
+          if (clinicId && (doctorApi as any).getDoctorsByClinicAndDepartment) {
+            response = await (doctorApi as any).getDoctorsByClinicAndDepartment(
+              clinicId,
+              department
+            );
+          } else if ((doctorApi as any).getDoctorsByDepartment) {
+            response = await (doctorApi as any).getDoctorsByDepartment(
+              department
+            );
+          } else {
+            // Fallback: Load all doctors by clinic and filter by department
+            if (clinicId) {
+              response = await doctorApi.getDoctorsByClinic(clinicId);
+            } else {
+              // Load all doctors and filter client-side (not ideal but works)
+              const allDoctorsResponse = await doctorApi.getAllDoctors({
+                page: 0,
+                size: 1000,
+              });
+              response = Array.isArray(allDoctorsResponse)
+                ? allDoctorsResponse
+                : [];
+            }
+
+            // Filter by department client-side
+            if (response && Array.isArray(response)) {
+              response = response.filter((doctor: any) => {
+                const doctorDept = doctor.department || doctor.specialization;
+                return (
+                  doctorDept === department ||
+                  (typeof doctorDept === "string" &&
+                    doctorDept.toUpperCase() === department.toUpperCase())
+                );
+              });
+            }
+          }
+        } catch (apiError) {
+          // If new API doesn't exist, fallback to old method
+          console.warn("New API not available, using fallback:", apiError);
           if (clinicId) {
             response = await doctorApi.getDoctorsByClinic(clinicId);
           } else {
-            // Load all doctors and filter client-side (not ideal but works)
-            const allDoctorsResponse = await doctorApi.getAllDoctors({ page: 0, size: 1000 });
-            response = Array.isArray(allDoctorsResponse) ? allDoctorsResponse : [];
+            const allDoctorsResponse = await doctorApi.getAllDoctors({
+              page: 0,
+              size: 1000,
+            });
+            response = Array.isArray(allDoctorsResponse)
+              ? allDoctorsResponse
+              : [];
           }
-          
+
           // Filter by department client-side
           if (response && Array.isArray(response)) {
             response = response.filter((doctor: any) => {
               const doctorDept = doctor.department || doctor.specialization;
-              return doctorDept === department || 
-                     (typeof doctorDept === 'string' && doctorDept.toUpperCase() === department.toUpperCase());
+              return (
+                doctorDept === department ||
+                (typeof doctorDept === "string" &&
+                  doctorDept.toUpperCase() === department.toUpperCase())
+              );
             });
           }
         }
-      } catch (apiError) {
-        // If new API doesn't exist, fallback to old method
-        console.warn('New API not available, using fallback:', apiError);
-        if (clinicId) {
-          response = await doctorApi.getDoctorsByClinic(clinicId);
-        } else {
-          const allDoctorsResponse = await doctorApi.getAllDoctors({ page: 0, size: 1000 });
-          response = Array.isArray(allDoctorsResponse) ? allDoctorsResponse : [];
-        }
-        
-        // Filter by department client-side
-        if (response && Array.isArray(response)) {
-          response = response.filter((doctor: any) => {
-            const doctorDept = doctor.department || doctor.specialization;
-            return doctorDept === department || 
-                   (typeof doctorDept === 'string' && doctorDept.toUpperCase() === department.toUpperCase());
-          });
-        }
+
+        setDoctors(Array.isArray(response) ? response : []);
+      } catch (error) {
+        console.error("Error loading doctors:", error);
+        setDoctors([]);
       }
-      
-      setDoctors(Array.isArray(response) ? response : []);
-    } catch (error) {
-      console.error('Error loading doctors:', error);
-      setDoctors([]);
-    }
-  }, []);
+    },
+    []
+  );
 
   useEffect(() => {
     // Kiểm tra authentication khi component mount
     const checkAuth = () => {
-      if (typeof window === 'undefined') {
+      if (typeof window === "undefined") {
         return;
       }
 
@@ -161,12 +268,12 @@ export default function OutdoorCheckupPage() {
         const user = getUser();
         if (user) {
           setPatientInfo({
-            name: user.fullName || '',
-            email: user.email || '',
-            phone: '',
-            age: '',
-            gender: '',
-            symptoms: '',
+            name: user.fullName || "",
+            email: user.email || "",
+            phone: "",
+            age: "",
+            gender: "",
+            symptoms: "",
           });
         }
       }
@@ -185,21 +292,21 @@ export default function OutdoorCheckupPage() {
         const user = getUser();
         if (user) {
           setPatientInfo({
-            name: user.fullName || '',
-            email: user.email || '',
-            phone: '',
-            age: '',
-            gender: '',
-            symptoms: '',
+            name: user.fullName || "",
+            email: user.email || "",
+            phone: "",
+            age: "",
+            gender: "",
+            symptoms: "",
           });
         }
       }
     };
 
-    if (typeof window !== 'undefined') {
-      window.addEventListener('auth-change', handleAuthChange);
+    if (typeof window !== "undefined") {
+      window.addEventListener("auth-change", handleAuthChange);
       return () => {
-        window.removeEventListener('auth-change', handleAuthChange);
+        window.removeEventListener("auth-change", handleAuthChange);
       };
     }
   }, [loadClinics]);
@@ -208,7 +315,7 @@ export default function OutdoorCheckupPage() {
     // Auto-load doctors when both clinic and department are selected
     if (selectedClinic && selectedDepartment) {
       loadDoctors(selectedDepartment, Number(selectedClinic));
-    } else if (selectedDepartment && step === 'doctor') {
+    } else if (selectedDepartment && step === "doctor") {
       // If no clinic selected but in doctor step, load all doctors for department
       loadDoctors(selectedDepartment);
     }
@@ -216,7 +323,11 @@ export default function OutdoorCheckupPage() {
 
   // Auto-load doctors when entering department step with clinic and default department
   useEffect(() => {
-    if (step === 'department' && selectedClinic && selectedDepartment === 'GENERAL_MEDICINE') {
+    if (
+      step === "department" &&
+      selectedClinic &&
+      selectedDepartment === "GENERAL_MEDICINE"
+    ) {
       // Auto-load doctors for default department when clinic is selected
       loadDoctors(selectedDepartment, Number(selectedClinic));
     }
@@ -234,9 +345,11 @@ export default function OutdoorCheckupPage() {
 
   // Countdown timer when in 'info' step with holdAppointmentId
   useEffect(() => {
-    if (step === 'info' && holdAppointmentId && holdStartTime) {
+    if (step === "info" && holdAppointmentId && holdStartTime) {
       // Calculate remaining time
-      const elapsed = Math.floor((new Date().getTime() - holdStartTime.getTime()) / 1000);
+      const elapsed = Math.floor(
+        (new Date().getTime() - holdStartTime.getTime()) / 1000
+      );
       const remaining = Math.max(0, 300 - elapsed); // 5 minutes = 300 seconds
       setTimeRemaining(remaining);
 
@@ -281,28 +394,37 @@ export default function OutdoorCheckupPage() {
       const slots = new Set<string>();
       schedules.forEach((schedule) => {
         // If this is a HOLD slot and user has selected a different slot, exclude it from booked slots
-        if (schedule.type === 'HOLD' && 
-            schedule.appointmentId === holdAppointmentId && 
-            selectedDate && selectedTime) {
+        if (
+          schedule.type === "HOLD" &&
+          schedule.appointmentId === holdAppointmentId &&
+          selectedDate &&
+          selectedTime
+        ) {
           // Check if this HOLD slot matches the currently selected slot
-          const scheduleDate = schedule.startDateTime ? new Date(schedule.startDateTime) : null;
+          const scheduleDate = schedule.startDateTime
+            ? new Date(schedule.startDateTime)
+            : null;
           if (scheduleDate) {
-            const [year, month, day] = selectedDate.split('-').map(Number);
+            const [year, month, day] = selectedDate.split("-").map(Number);
             const selectedDateObj = new Date(year, month - 1, day);
-            const selectedHour = parseInt(selectedTime.split(':')[0]);
-            
+            const selectedHour = parseInt(selectedTime.split(":")[0]);
+
             // If this HOLD slot doesn't match the selected slot, skip it
-            if (scheduleDate.toDateString() !== selectedDateObj.toDateString() ||
-                scheduleDate.getHours() !== selectedHour) {
+            if (
+              scheduleDate.toDateString() !== selectedDateObj.toDateString() ||
+              scheduleDate.getHours() !== selectedHour
+            ) {
               return; // Skip this HOLD - it's being replaced
             }
           }
         }
-        
+
         if (schedule.startDateTime) {
           const startDate = new Date(schedule.startDateTime);
-          const endDate = schedule.endDateTime ? new Date(schedule.endDateTime) : startDate;
-          
+          const endDate = schedule.endDateTime
+            ? new Date(schedule.endDateTime)
+            : startDate;
+
           // Add all hours between start and end
           const currentDate = new Date(startDate);
           while (currentDate <= endDate) {
@@ -312,7 +434,7 @@ export default function OutdoorCheckupPage() {
             const hour = currentDate.getHours();
             const slotKey = `${year}-${month}-${day}-${hour}`;
             slots.add(slotKey);
-            
+
             // Move to next hour
             currentDate.setHours(currentDate.getHours() + 1);
           }
@@ -320,7 +442,7 @@ export default function OutdoorCheckupPage() {
           // Handle date range (for leave requests)
           const startDate = new Date(schedule.startDate);
           const endDate = new Date(schedule.endDate);
-          
+
           const currentDate = new Date(startDate);
           while (currentDate <= endDate) {
             // Mark all hours (8-17) for this date as busy
@@ -335,10 +457,10 @@ export default function OutdoorCheckupPage() {
           }
         }
       });
-      
+
       setBookedSlots(slots);
     } catch (error) {
-      console.error('Error loading busy schedules:', error);
+      console.error("Error loading busy schedules:", error);
       setBusySchedules([]);
       setBookedSlots(new Set());
     } finally {
@@ -348,11 +470,11 @@ export default function OutdoorCheckupPage() {
 
   const handleClinicSelect = (clinicId: string) => {
     setSelectedClinic(clinicId);
-    setStep('department');
+    setStep("department");
     // Clear selections when changing clinic
-    setSelectedDoctor('');
-    setSelectedDate('');
-    setSelectedTime('');
+    setSelectedDoctor("");
+    setSelectedDate("");
+    setSelectedTime("");
     setHoldAppointmentId(null);
     // Keep default department (GENERAL_MEDICINE) - already selected by default
     // Auto-load doctors when clinic is selected and department is already set
@@ -365,21 +487,21 @@ export default function OutdoorCheckupPage() {
 
   const handleDepartmentSelect = (deptValue: string) => {
     setSelectedDepartment(deptValue);
-    setStep('doctor');
+    setStep("doctor");
     // Clear hold when changing department
     setHoldAppointmentId(null);
-    setSelectedDate('');
-    setSelectedTime('');
-    setSelectedDoctor('');
+    setSelectedDate("");
+    setSelectedTime("");
+    setSelectedDoctor("");
   };
 
   const handleDoctorSelect = (doctorId: string) => {
     setSelectedDoctor(doctorId);
-    setStep('datetime');
+    setStep("datetime");
     // Clear hold when changing doctor
     setHoldAppointmentId(null);
-    setSelectedDate('');
-    setSelectedTime('');
+    setSelectedDate("");
+    setSelectedTime("");
   };
 
   // This function is no longer used - handleSlotSelection now handles it
@@ -387,74 +509,82 @@ export default function OutdoorCheckupPage() {
     // This is handled by handleSlotSelection now
     setSelectedDate(date);
     setSelectedTime(time);
-    setStep('info');
+    setStep("info");
   };
 
   const handleInfoSubmit = () => {
     // Validate required fields
-    if (!patientInfo.age || patientInfo.age.trim() === '') {
-      setErrorMessage('Vui lòng nhập tuổi.');
+    if (!patientInfo.age || patientInfo.age.trim() === "") {
+      setErrorMessage("Vui lòng nhập tuổi.");
       return;
     }
-    
+
     const ageNum = parseInt(patientInfo.age);
     if (isNaN(ageNum) || ageNum < 1 || ageNum > 200) {
-      setErrorMessage('Tuổi phải từ 1 đến 200.');
+      setErrorMessage("Tuổi phải từ 1 đến 200.");
       return;
     }
-    
-    if (!patientInfo.gender || patientInfo.gender.trim() === '') {
-      setErrorMessage('Vui lòng chọn giới tính.');
+
+    if (!patientInfo.gender || patientInfo.gender.trim() === "") {
+      setErrorMessage("Vui lòng chọn giới tính.");
       return;
     }
-    
-    if (!patientInfo.symptoms || patientInfo.symptoms.trim() === '') {
-      setErrorMessage('Vui lòng nhập triệu chứng / lý do khám.');
+
+    if (!patientInfo.symptoms || patientInfo.symptoms.trim() === "") {
+      setErrorMessage("Vui lòng nhập triệu chứng / lý do khám.");
       return;
     }
-    
-    setErrorMessage('');
-    setStep('confirm');
+
+    setErrorMessage("");
+    setStep("confirm");
   };
 
   const handleConfirm = async () => {
     if (!holdAppointmentId) {
-      setErrorMessage('Không tìm thấy thông tin giữ chỗ. Vui lòng chọn lại lịch.');
+      setErrorMessage(
+        "Không tìm thấy thông tin giữ chỗ. Vui lòng chọn lại lịch."
+      );
       return;
     }
 
-    if (!selectedDoctor || !selectedDepartment || !selectedDate || !selectedTime) {
-      setErrorMessage('Vui lòng chọn đầy đủ thông tin.');
+    if (
+      !selectedDoctor ||
+      !selectedDepartment ||
+      !selectedDate ||
+      !selectedTime
+    ) {
+      setErrorMessage("Vui lòng chọn đầy đủ thông tin.");
       return;
     }
 
     // Validate required fields: age, gender, symptoms
-    if (!patientInfo.age || patientInfo.age.trim() === '') {
-      setErrorMessage('Vui lòng nhập tuổi.');
+    if (!patientInfo.age || patientInfo.age.trim() === "") {
+      setErrorMessage("Vui lòng nhập tuổi.");
       return;
     }
-    
+
     const ageNum = parseInt(patientInfo.age);
     if (isNaN(ageNum) || ageNum < 1 || ageNum > 200) {
-      setErrorMessage('Tuổi phải từ 1 đến 200.');
+      setErrorMessage("Tuổi phải từ 1 đến 200.");
       return;
     }
-    
-    if (!patientInfo.gender || patientInfo.gender.trim() === '') {
-      setErrorMessage('Vui lòng chọn giới tính.');
+
+    if (!patientInfo.gender || patientInfo.gender.trim() === "") {
+      setErrorMessage("Vui lòng chọn giới tính.");
       return;
     }
-    
-    if (!patientInfo.symptoms || patientInfo.symptoms.trim() === '') {
-      setErrorMessage('Vui lòng nhập triệu chứng / lý do khám.');
+
+    if (!patientInfo.symptoms || patientInfo.symptoms.trim() === "") {
+      setErrorMessage("Vui lòng nhập triệu chứng / lý do khám.");
       return;
     }
 
     try {
       setIsCreatingAppointment(true);
-      setErrorMessage('');
+      setErrorMessage("");
 
-      const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+      const baseURL =
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
       const token = getToken();
 
       // Prepare confirm request body with age, gender, symptoms (all required)
@@ -471,7 +601,7 @@ export default function OutdoorCheckupPage() {
         confirmBody,
         {
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
             ...(token && { Authorization: `Bearer ${token}` }),
           },
         }
@@ -479,50 +609,54 @@ export default function OutdoorCheckupPage() {
 
       // Handle response
       const appointment = response.data?.data || response.data;
-      
+
       if (appointment && appointment.id) {
         setAppointmentId(appointment.id.toString());
-        setAppointmentStatus(appointment.status || 'PENDING');
+        setAppointmentStatus(appointment.status || "PENDING");
         setHoldAppointmentId(null); // Clear hold appointment ID
-        setStep('detail');
-        setErrorMessage(''); // Clear any previous errors
-        
+        setStep("detail");
+        setErrorMessage(""); // Clear any previous errors
+
         // Reload busy schedules to update display
         await loadBusySchedules(Number(selectedDoctor));
-        
+
         // Start checking appointment status if still PENDING
-        if (appointment.status === 'PENDING') {
+        if (appointment.status === "PENDING") {
           startStatusPolling(appointment.id);
         }
       } else {
-        throw new Error('Failed to confirm appointment: No appointment ID returned');
+        throw new Error(
+          "Failed to confirm appointment: No appointment ID returned"
+        );
       }
     } catch (error: any) {
-      console.error('Error confirming appointment:', error);
-      
+      console.error("Error confirming appointment:", error);
+
       // Parse error message from API response
       const errorData = error?.response?.data || error?.data || error;
-      const apiMessage = errorData?.message || error?.message || '';
-      
+      const apiMessage = errorData?.message || error?.message || "";
+
       // Check if appointment slot is not in HOLD status (expired)
-      if (apiMessage.includes('not in HOLD status') || 
-          apiMessage.includes('HOLD status') ||
-          apiMessage.includes('expired') ||
-          apiMessage.includes('hết hạn')) {
+      if (
+        apiMessage.includes("not in HOLD status") ||
+        apiMessage.includes("HOLD status") ||
+        apiMessage.includes("expired") ||
+        apiMessage.includes("hết hạn")
+      ) {
         // Show time expired modal
         setShowTimeExpiredModal(true);
-        setErrorMessage('');
+        setErrorMessage("");
       } else {
         // Other errors - show error message
-        let errorMsg = 'Có lỗi xảy ra khi xác nhận lịch hẹn. Vui lòng thử lại.';
-        
+        let errorMsg = "Có lỗi xảy ra khi xác nhận lịch hẹn. Vui lòng thử lại.";
+
         if (apiMessage) {
           errorMsg = apiMessage;
         }
-        
+
         setErrorMessage(errorMsg);
       }
-      
+
       // Reload busy schedules to check current status
       if (selectedDoctor) {
         await loadBusySchedules(Number(selectedDoctor));
@@ -563,23 +697,25 @@ export default function OutdoorCheckupPage() {
         const appointmentApi = getAppointmentManagement();
         const response = await appointmentApi.getMyAppointments();
         const appointments = Array.isArray(response) ? response : [];
-        const currentAppointment = appointments.find((apt: any) => apt.id === appointmentId);
-        
+        const currentAppointment = appointments.find(
+          (apt: any) => apt.id === appointmentId
+        );
+
         if (currentAppointment) {
           const status = currentAppointment.status;
-          setAppointmentStatus(status);
-          
+          setAppointmentStatus(status || "PENDING");
+
           // Stop polling if appointment is no longer PENDING
-          if (status !== 'PENDING') {
+          if (status !== "PENDING") {
             clearInterval(pollInterval);
             setIsCheckingStatus(false);
-            
+
             // Show appropriate modal based on status
-            if (status === 'REJECTED') {
+            if (status === "REJECTED") {
               setShowRejectedModal(true);
-            } else if (status === 'EXPIRED') {
+            } else if (status === "EXPIRED") {
               setShowExpiredModal(true);
-            } else if (status === 'CONFIRMED') {
+            } else if (status === "CONFIRMED") {
               // Appointment confirmed - no action needed, just update display
             }
           }
@@ -589,82 +725,92 @@ export default function OutdoorCheckupPage() {
           setIsCheckingStatus(false);
         }
       } catch (error) {
-        console.error('Error polling appointment status:', error);
+        console.error("Error polling appointment status:", error);
         // Continue polling on error
       }
     }, 10000); // Check every 10 seconds
-    
+
     // Stop polling after 2 hours (timeout period)
     setTimeout(() => {
       clearInterval(pollInterval);
       setIsCheckingStatus(false);
     }, 2 * 60 * 60 * 1000); // 2 hours
-    
+
     setIsCheckingStatus(true);
   }, []);
 
   // Check appointment status when entering detail step
   useEffect(() => {
-    if (step === 'detail' && appointmentId) {
+    if (step === "detail" && appointmentId) {
       const checkStatus = async () => {
         try {
           const appointmentApi = getAppointmentManagement();
           const response = await appointmentApi.getMyAppointments();
           const appointments = Array.isArray(response) ? response : [];
-          const currentAppointment = appointments.find((apt: any) => apt.id?.toString() === appointmentId);
-          
+          const currentAppointment = appointments.find(
+            (apt: any) => apt.id?.toString() === appointmentId
+          );
+
           if (currentAppointment) {
             const status = currentAppointment.status;
-            setAppointmentStatus(status);
-            
+            setAppointmentStatus(status || "PENDING");
+
             // Show appropriate modal if rejected or expired
-            if (status === 'REJECTED') {
+            if (status === "REJECTED") {
               setShowRejectedModal(true);
-            } else if (status === 'EXPIRED') {
+            } else if (status === "EXPIRED") {
               setShowExpiredModal(true);
-            } else if (status === 'PENDING') {
+            } else if (status === "PENDING") {
               // Start polling if still pending
               startStatusPolling(Number(appointmentId));
             }
           }
         } catch (error) {
-          console.error('Error checking appointment status:', error);
+          console.error("Error checking appointment status:", error);
         }
       };
-      
+
       checkStatus();
     }
   }, [step, appointmentId, startStatusPolling]);
 
   // Get busy schedule info for a specific slot
   // Exclude HOLD slots that belong to the current user (holdAppointmentId) if user has selected a different slot
-  const getSlotBusyInfo = (date: Date, hour: number): BusyScheduleResponse | null => {
+  const getSlotBusyInfo = (
+    date: Date,
+    hour: number
+  ): BusyScheduleResponse | null => {
     const slotDateTime = new Date(date);
     slotDateTime.setHours(hour, 0, 0, 0);
-    
+
     // Check if this slot matches the currently selected slot
-    const isCurrentSelectedSlot = selectedDate && selectedTime && (() => {
-      const [year, month, day] = selectedDate.split('-').map(Number);
-      const selectedDateObj = new Date(year, month - 1, day);
-      return (
-        date.toDateString() === selectedDateObj.toDateString() &&
-        parseInt(selectedTime.split(':')[0]) === hour
-      );
-    })();
-    
+    const isCurrentSelectedSlot =
+      selectedDate &&
+      selectedTime &&
+      (() => {
+        const [year, month, day] = selectedDate.split("-").map(Number);
+        const selectedDateObj = new Date(year, month - 1, day);
+        return (
+          date.toDateString() === selectedDateObj.toDateString() &&
+          parseInt(selectedTime.split(":")[0]) === hour
+        );
+      })();
+
     for (const schedule of busySchedules) {
       // If this is a HOLD slot and user has selected a different slot, skip it
       // (This is the user's own HOLD that they're replacing)
-      if (schedule.type === 'HOLD' && 
-          schedule.appointmentId === holdAppointmentId && 
-          !isCurrentSelectedSlot) {
+      if (
+        schedule.type === "HOLD" &&
+        schedule.appointmentId === holdAppointmentId &&
+        !isCurrentSelectedSlot
+      ) {
         continue; // Skip this HOLD slot - it's being replaced
       }
-      
+
       if (schedule.startDateTime && schedule.endDateTime) {
         const startDate = new Date(schedule.startDateTime);
         const endDate = new Date(schedule.endDateTime);
-        
+
         if (slotDateTime >= startDate && slotDateTime < endDate) {
           return schedule;
         }
@@ -673,10 +819,10 @@ export default function OutdoorCheckupPage() {
         startDate.setHours(0, 0, 0, 0);
         const endDate = new Date(schedule.endDate);
         endDate.setHours(23, 59, 59, 999);
-        
+
         const slotDateOnly = new Date(date);
         slotDateOnly.setHours(0, 0, 0, 0);
-        
+
         if (slotDateOnly >= startDate && slotDateOnly <= endDate) {
           return schedule;
         }
@@ -710,64 +856,66 @@ export default function OutdoorCheckupPage() {
   // will automatically return false (deselected) and only the new slot will return true
   const isSlotSelected = (date: Date, hour: number): boolean => {
     if (!selectedDate || !selectedTime) return false;
-    const [year, month, day] = selectedDate.split('-').map(Number);
+    const [year, month, day] = selectedDate.split("-").map(Number);
     const selectedDateObj = new Date(year, month - 1, day);
     return (
       date.toDateString() === selectedDateObj.toDateString() &&
-      parseInt(selectedTime.split(':')[0]) === hour
+      parseInt(selectedTime.split(":")[0]) === hour
     );
   };
 
   // Format date to YYYY-MM-DD without timezone issues
   const formatDateToString = (date: Date): string => {
     const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
   };
 
   // Handle slot selection - Only set selected date/time, don't call API
   const handleSlotSelection = (date: Date, hour: number) => {
     if (isPastTime(date, hour)) {
-      setErrorMessage('Không thể chọn lịch trong quá khứ.');
+      setErrorMessage("Không thể chọn lịch trong quá khứ.");
       return;
     }
 
     if (isSlotBooked(date, hour)) {
       const slotType = getSlotType(date, hour);
-      if (slotType === 'HOLD') {
-        setErrorMessage('Lịch này đang được giữ bởi người khác. Vui lòng chọn lịch khác.');
+      if (slotType === "HOLD") {
+        setErrorMessage(
+          "Lịch này đang được giữ bởi người khác. Vui lòng chọn lịch khác."
+        );
       } else {
-        setErrorMessage('Lịch này đã được đặt hoặc bác sĩ không có sẵn.');
+        setErrorMessage("Lịch này đã được đặt hoặc bác sĩ không có sẵn.");
       }
       return;
     }
 
     const selectedDateStr = formatDateToString(date);
-    const selectedTimeStr = `${hour.toString().padStart(2, '0')}:00`;
-    
+    const selectedTimeStr = `${hour.toString().padStart(2, "0")}:00`;
+
     // Update selected date/time - this will automatically deselect the previous slot
     // because isSlotSelected checks against current selectedDate/selectedTime
     setSelectedDate(selectedDateStr);
     setSelectedTime(selectedTimeStr);
-    setErrorMessage('');
+    setErrorMessage("");
   };
 
   // Handle Continue button - Create or update HOLD appointment
   const handleContinueDateTime = async () => {
     if (!selectedDate || !selectedTime) {
-      setErrorMessage('Vui lòng chọn lịch trước khi tiếp tục.');
+      setErrorMessage("Vui lòng chọn lịch trước khi tiếp tục.");
       return;
     }
 
     if (!selectedDoctor || !selectedDepartment) {
-      setErrorMessage('Vui lòng chọn bác sĩ trước.');
+      setErrorMessage("Vui lòng chọn bác sĩ trước.");
       return;
     }
 
     try {
       setIsHoldingSlot(true);
-      setErrorMessage('');
+      setErrorMessage("");
 
       const appointmentApi = getAppointmentManagement();
 
@@ -775,17 +923,17 @@ export default function OutdoorCheckupPage() {
       if (holdAppointmentId) {
         try {
           await appointmentApi.updateAppointmentStatus(holdAppointmentId, {
-            status: 'CANCELLED'
+            status: "CANCELLED",
           });
           // Clear the old hold appointment ID
           setHoldAppointmentId(null);
-          
+
           // Reload busy schedules immediately after cancelling to remove old HOLD slot from UI
           if (selectedDoctor) {
             await loadBusySchedules(Number(selectedDoctor));
           }
         } catch (cancelError: any) {
-          console.warn('Error cancelling previous hold:', cancelError);
+          console.warn("Error cancelling previous hold:", cancelError);
           // Continue anyway - might have already expired
           // Still try to reload busy schedules
           if (selectedDoctor) {
@@ -796,23 +944,29 @@ export default function OutdoorCheckupPage() {
 
       // Create new appointment to HOLD the new slot
       // Always use exact time (without adding 1 second) since we're cancelling the old hold first
+      // Format datetime without timezone offset (LocalDateTime format)
+      // Backend uses LocalDateTime which doesn't support timezone offset
+      // Backend timezone is already set to GMT+7 (Asia/Ho_Chi_Minh)
       const appointmentTime = `${selectedDate}T${selectedTime}:00`;
 
       // Get selected doctor to extract clinicId
-      const selectedDoctorObj = doctors.find(d => d.id?.toString() === selectedDoctor);
+      const selectedDoctorObj = doctors.find(
+        (d) => d.id?.toString() === selectedDoctor
+      );
       if (!selectedDoctorObj) {
-        setErrorMessage('Không tìm thấy thông tin bác sĩ. Vui lòng chọn lại.');
+        setErrorMessage("Không tìm thấy thông tin bác sĩ. Vui lòng chọn lại.");
         setIsHoldingSlot(false);
         return;
       }
 
       // Extract clinicId from doctor object (could be clinic.id or clinicId)
-      const clinicId = selectedDoctorObj.clinic?.id || 
-                      selectedDoctorObj.clinicId || 
-                      (selectedClinic ? Number(selectedClinic) : null);
-      
+      const clinicId =
+        selectedDoctorObj.clinic?.id ||
+        selectedDoctorObj.clinicId ||
+        (selectedClinic ? Number(selectedClinic) : null);
+
       if (!clinicId) {
-        setErrorMessage('Không tìm thấy thông tin cơ sở. Vui lòng chọn lại.');
+        setErrorMessage("Không tìm thấy thông tin cơ sở. Vui lòng chọn lại.");
         setIsHoldingSlot(false);
         return;
       }
@@ -830,57 +984,75 @@ export default function OutdoorCheckupPage() {
       if (appointment && appointment.id) {
         setHoldAppointmentId(appointment.id);
         setHoldStartTime(new Date()); // Record when hold started
-        setErrorMessage('');
-        
+        setErrorMessage("");
+
         // Reload busy schedules again to show new HOLD slot
         await loadBusySchedules(Number(selectedDoctor));
-        
+
         // Move to next step
-        setStep('info');
+        setStep("info");
       } else {
-        throw new Error('Failed to hold slot: No appointment ID returned');
+        throw new Error("Failed to hold slot: No appointment ID returned");
       }
     } catch (error: any) {
-      console.error('Error holding slot:', error);
-      let errorMsg = 'Có lỗi xảy ra khi giữ chỗ. Vui lòng thử lại.';
-      
+      console.error("Error holding slot:", error);
+      let errorMsg = "Có lỗi xảy ra khi giữ chỗ. Vui lòng thử lại.";
+
       // Parse error message from API response
       // API response structure: { message, path, status, success, timestamp }
       const errorData = error?.response?.data || error?.data || error;
-      
+
       if (errorData?.message) {
         const apiMessage = errorData.message;
-        
+
         // Map common API messages to user-friendly Vietnamese messages
-        if (apiMessage.includes('already an appointment') || 
-            apiMessage.includes('overlaps with an existing appointment') ||
-            apiMessage.includes('slot overlaps') ||
-            apiMessage.toLowerCase().includes('appointment at this time')) {
-          errorMsg = '⏰ Lịch này đã được đặt bởi người khác. Vui lòng chọn lịch khác.';
-        } else if (apiMessage.includes('doctor is on leave') || 
-                   apiMessage.includes('doctor is not available') ||
-                   apiMessage.includes('on leave')) {
-          errorMsg = '🏖️ Bác sĩ không có sẵn vào thời gian này (đang nghỉ phép). Vui lòng chọn lịch khác.';
-        } else if (apiMessage.includes('conflicting appointments') ||
-                   apiMessage.includes('conflict')) {
-          errorMsg = '⚠️ Có lịch hẹn trùng với thời gian này. Vui lòng chọn lịch khác.';
-        } else if (apiMessage.includes('not work at') ||
-                   apiMessage.includes('does not work')) {
-          errorMsg = '🏥 Bác sĩ không làm việc tại cơ sở này. Vui lòng chọn lại.';
+        if (
+          apiMessage.includes("already an appointment") ||
+          apiMessage.includes("overlaps with an existing appointment") ||
+          apiMessage.includes("slot overlaps") ||
+          apiMessage.toLowerCase().includes("appointment at this time")
+        ) {
+          errorMsg =
+            "⏰ Lịch này đã được đặt bởi người khác. Vui lòng chọn lịch khác.";
+        } else if (
+          apiMessage.includes("doctor is on leave") ||
+          apiMessage.includes("doctor is not available") ||
+          apiMessage.includes("on leave")
+        ) {
+          errorMsg =
+            "🏖️ Bác sĩ không có sẵn vào thời gian này (đang nghỉ phép). Vui lòng chọn lịch khác.";
+        } else if (
+          apiMessage.includes("conflicting appointments") ||
+          apiMessage.includes("conflict")
+        ) {
+          errorMsg =
+            "⚠️ Có lịch hẹn trùng với thời gian này. Vui lòng chọn lịch khác.";
+        } else if (
+          apiMessage.includes("not work at") ||
+          apiMessage.includes("does not work")
+        ) {
+          errorMsg =
+            "🏥 Bác sĩ không làm việc tại cơ sở này. Vui lòng chọn lại.";
         } else {
           // Use the API message directly, but translate common phrases
           errorMsg = apiMessage
-            .replace('There is already an appointment at this time', 'Lịch này đã được đặt')
-            .replace('The slot overlaps with an existing appointment', 'Lịch trùng với lịch hẹn khác');
+            .replace(
+              "There is already an appointment at this time",
+              "Lịch này đã được đặt"
+            )
+            .replace(
+              "The slot overlaps with an existing appointment",
+              "Lịch trùng với lịch hẹn khác"
+            );
         }
       } else if (errorData?.error) {
         errorMsg = errorData.error;
       } else if (error?.message) {
         errorMsg = error.message;
       }
-      
+
       setErrorMessage(errorMsg);
-      
+
       // Reload busy schedules to show updated availability
       if (selectedDoctor) {
         await loadBusySchedules(Number(selectedDoctor));
@@ -895,8 +1067,8 @@ export default function OutdoorCheckupPage() {
     const newWeek = new Date(selectedWeek);
     newWeek.setDate(newWeek.getDate() - 7);
     setSelectedWeek(newWeek);
-    setSelectedDate('');
-    setSelectedTime('');
+    setSelectedDate("");
+    setSelectedTime("");
     // Reload busy schedules for the new week
     if (selectedDoctor) {
       await loadBusySchedules(Number(selectedDoctor));
@@ -908,8 +1080,8 @@ export default function OutdoorCheckupPage() {
     const newWeek = new Date(selectedWeek);
     newWeek.setDate(newWeek.getDate() + 7);
     setSelectedWeek(newWeek);
-    setSelectedDate('');
-    setSelectedTime('');
+    setSelectedDate("");
+    setSelectedTime("");
     // Reload busy schedules for the new week
     if (selectedDoctor) {
       await loadBusySchedules(Number(selectedDoctor));
@@ -919,7 +1091,7 @@ export default function OutdoorCheckupPage() {
   const handleCloseLoginModal = () => {
     // Nếu chưa đăng nhập, đóng modal sẽ redirect về trang chủ
     if (!isAuthenticated()) {
-      router.push('/');
+      router.push("/");
     } else {
       setShowLoginModal(false);
     }
@@ -947,7 +1119,15 @@ export default function OutdoorCheckupPage() {
   const weekStart = getWeekStart(selectedWeek);
   const weekDays = getWeekDays(weekStart);
   const hours = getHours(); // 8-17
-  const dayNames = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
+  const dayNames = [
+    "Thứ 2",
+    "Thứ 3",
+    "Thứ 4",
+    "Thứ 5",
+    "Thứ 6",
+    "Thứ 7",
+    "Chủ nhật",
+  ];
 
   // Hiển thị loading khi đang kiểm tra authentication
   if (isCheckingAuth) {
@@ -972,15 +1152,15 @@ export default function OutdoorCheckupPage() {
     <>
       <Topbar />
       <Navbar />
-      
+
       {/* Login Modal - hiển thị khi chưa đăng nhập */}
-      <LoginModal 
-        show={showLoginModal && !isAuthenticated()} 
+      <LoginModal
+        show={showLoginModal && !isAuthenticated()}
         onHide={handleCloseLoginModal}
         onSwitchToSignup={handleSwitchToSignup}
       />
-      <SignupModal 
-        show={showSignupModal && !isAuthenticated()} 
+      <SignupModal
+        show={showSignupModal && !isAuthenticated()}
         onHide={handleCloseSignupModal}
         onSwitchToLogin={handleSwitchToLogin}
       />
@@ -994,48 +1174,63 @@ export default function OutdoorCheckupPage() {
                 <div className="card-body py-4">
                   <div className="d-flex justify-content-between align-items-center">
                     {[
-                      { label: 'Bệnh viện', step: 'clinic' },
-                      { label: 'Chuyên khoa', step: 'department' },
-                      { label: 'Bác sĩ', step: 'doctor' },
-                      { label: 'Ngày giờ', step: 'datetime' },
-                      { label: 'Thông tin', step: 'info' },
-                      { label: 'Xác nhận', step: 'confirm' }
+                      { label: "Bệnh viện", step: "clinic" },
+                      { label: "Chuyên khoa", step: "department" },
+                      { label: "Bác sĩ", step: "doctor" },
+                      { label: "Ngày giờ", step: "datetime" },
+                      { label: "Thông tin", step: "info" },
+                      { label: "Xác nhận", step: "confirm" },
                     ].map((item, index) => {
-                      const steps = ['clinic', 'department', 'doctor', 'datetime', 'info', 'confirm'];
+                      const steps = [
+                        "clinic",
+                        "department",
+                        "doctor",
+                        "datetime",
+                        "info",
+                        "confirm",
+                      ];
                       const currentStepIndex = steps.indexOf(step);
                       const isActive = index <= currentStepIndex;
                       const isCurrent = index === currentStepIndex;
                       return (
-                        <div key={item.step} className="text-center flex-fill position-relative">
+                        <div
+                          key={item.step}
+                          className="text-center flex-fill position-relative"
+                        >
                           {/* Connector line */}
                           {index < 5 && (
-                            <div 
+                            <div
                               className={`position-absolute top-0 start-50 translate-middle-x ${
-                                isActive ? 'bg-primary' : 'bg-light'
+                                isActive ? "bg-primary" : "bg-light"
                               }`}
-                              style={{ 
-                                width: '100%', 
-                                height: '3px', 
+                              style={{
+                                width: "100%",
+                                height: "3px",
                                 zIndex: 0,
-                                marginTop: '18px',
-                                marginLeft: '50%'
+                                marginTop: "18px",
+                                marginLeft: "50%",
                               }}
                             />
                           )}
-                          <div className="position-relative" style={{ zIndex: 1 }}>
+                          <div
+                            className="position-relative"
+                            style={{ zIndex: 1 }}
+                          >
                             <div
                               className={`rounded-circle d-inline-flex align-items-center justify-content-center ${
-                                isCurrent 
-                                  ? 'bg-primary text-white shadow-lg' 
-                                  : isActive 
-                                    ? 'bg-success text-white' 
-                                    : 'bg-light text-muted'
+                                isCurrent
+                                  ? "bg-primary text-white shadow-lg"
+                                  : isActive
+                                  ? "bg-success text-white"
+                                  : "bg-light text-muted"
                               }`}
-                              style={{ 
-                                width: '45px', 
-                                height: '45px',
-                                transition: 'all 0.3s ease',
-                                border: isCurrent ? '3px solid #0d6efd' : 'none'
+                              style={{
+                                width: "45px",
+                                height: "45px",
+                                transition: "all 0.3s ease",
+                                border: isCurrent
+                                  ? "3px solid #0d6efd"
+                                  : "none",
                               }}
                             >
                               {isActive && !isCurrent ? (
@@ -1044,7 +1239,11 @@ export default function OutdoorCheckupPage() {
                                 index + 1
                               )}
                             </div>
-                            <div className={`mt-2 small fw-medium ${isActive ? 'text-primary' : 'text-muted'}`}>
+                            <div
+                              className={`mt-2 small fw-medium ${
+                                isActive ? "text-primary" : "text-muted"
+                              }`}
+                            >
                               {item.label}
                             </div>
                           </div>
@@ -1056,22 +1255,35 @@ export default function OutdoorCheckupPage() {
               </div>
 
               {/* Step 1: Select Clinic */}
-              {step === 'clinic' && (
+              {step === "clinic" && (
                 <div className="card shadow-lg border-0">
-                  <div className="card-header bg-gradient-primary text-white py-4" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                  <div
+                    className="card-header bg-gradient-primary text-white py-4"
+                    style={{
+                      background:
+                        "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                    }}
+                  >
                     <h3 className="mb-0">
                       <i className="fa fa-hospital-o me-2"></i>
                       Chọn Bệnh Viện / Cơ Sở
                     </h3>
-                    <small className="text-white-50">Vui lòng chọn nơi bạn muốn khám bệnh</small>
+                    <small className="text-white-50">
+                      Vui lòng chọn nơi bạn muốn khám bệnh
+                    </small>
                   </div>
                   <div className="card-body p-4">
                     {clinics.length === 0 ? (
                       <div className="text-center py-5">
-                        <div className="spinner-border text-primary mb-3" role="status">
+                        <div
+                          className="spinner-border text-primary mb-3"
+                          role="status"
+                        >
                           <span className="visually-hidden">Loading...</span>
                         </div>
-                        <p className="text-muted">Đang tải danh sách cơ sở...</p>
+                        <p className="text-muted">
+                          Đang tải danh sách cơ sở...
+                        </p>
                       </div>
                     ) : (
                       <div className="row g-4">
@@ -1080,31 +1292,55 @@ export default function OutdoorCheckupPage() {
                             <button
                               className={`btn w-100 p-4 text-start h-100 border-2 ${
                                 selectedClinic === clinic.id?.toString()
-                                  ? 'btn-primary border-primary shadow'
-                                  : 'btn-outline-primary border-light'
+                                  ? "btn-primary border-primary shadow"
+                                  : "btn-outline-primary border-light"
                               }`}
-                              onClick={() => handleClinicSelect(clinic.id.toString())}
+                              onClick={() =>
+                                handleClinicSelect(clinic.id.toString())
+                              }
                               style={{
-                                transition: 'all 0.3s ease',
-                                borderRadius: '12px'
+                                transition: "all 0.3s ease",
+                                borderRadius: "12px",
                               }}
                             >
                               <div className="d-flex align-items-center mb-3">
-                                <i className={`fa fa-hospital-o fa-2x me-3 ${
-                                  selectedClinic === clinic.id?.toString() ? 'text-white' : 'text-primary'
-                                }`}></i>
-                                <h5 className={`mb-0 ${selectedClinic === clinic.id?.toString() ? 'text-white' : ''}`}>
+                                <i
+                                  className={`fa fa-hospital-o fa-2x me-3 ${
+                                    selectedClinic === clinic.id?.toString()
+                                      ? "text-white"
+                                      : "text-primary"
+                                  }`}
+                                ></i>
+                                <h5
+                                  className={`mb-0 ${
+                                    selectedClinic === clinic.id?.toString()
+                                      ? "text-white"
+                                      : ""
+                                  }`}
+                                >
                                   {clinic.name}
                                 </h5>
                               </div>
                               {clinic.address && (
-                                <p className={`small mb-2 ${selectedClinic === clinic.id?.toString() ? 'text-white-50' : 'text-muted'}`}>
+                                <p
+                                  className={`small mb-2 ${
+                                    selectedClinic === clinic.id?.toString()
+                                      ? "text-white-50"
+                                      : "text-muted"
+                                  }`}
+                                >
                                   <i className="fa fa-map-marker me-1"></i>
                                   {clinic.address}
                                 </p>
                               )}
                               {clinic.phone && (
-                                <p className={`small mb-0 ${selectedClinic === clinic.id?.toString() ? 'text-white-50' : 'text-muted'}`}>
+                                <p
+                                  className={`small mb-0 ${
+                                    selectedClinic === clinic.id?.toString()
+                                      ? "text-white-50"
+                                      : "text-muted"
+                                  }`}
+                                >
                                   <i className="fa fa-phone me-1"></i>
                                   {clinic.phone}
                                 </p>
@@ -1119,25 +1355,32 @@ export default function OutdoorCheckupPage() {
               )}
 
               {/* Step 2: Select Department */}
-              {step === 'department' && (
+              {step === "department" && (
                 <div className="card shadow-lg border-0">
-                  <div className="card-header bg-gradient-success text-white py-4" style={{ background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)' }}>
+                  <div
+                    className="card-header bg-gradient-success text-white py-4"
+                    style={{
+                      background:
+                        "linear-gradient(135deg, #11998e 0%, #38ef7d 100%)",
+                    }}
+                  >
                     <h3 className="mb-0">
                       <i className="fa fa-stethoscope me-2"></i>
                       Chọn Chuyên Khoa
                     </h3>
                     <small className="text-white-50">
-                      {clinics.find(c => c.id?.toString() === selectedClinic)?.name || 'Tất cả cơ sở'}
+                      {clinics.find((c) => c.id?.toString() === selectedClinic)
+                        ?.name || "Tất cả cơ sở"}
                     </small>
                   </div>
                   <div className="card-body p-4">
                     <button
                       className="btn btn-outline-secondary mb-4"
                       onClick={() => {
-                        setStep('clinic');
-                        setSelectedClinic('');
-                        setSelectedDepartment('GENERAL_MEDICINE');
-                        setSelectedDoctor('');
+                        setStep("clinic");
+                        setSelectedClinic("");
+                        setSelectedDepartment("GENERAL_MEDICINE");
+                        setSelectedDoctor("");
                         setDoctors([]);
                       }}
                     >
@@ -1152,20 +1395,30 @@ export default function OutdoorCheckupPage() {
                               className={`btn w-100 p-4 text-start h-100 border-2 ${
                                 isSelected
                                   ? `btn-${dept.color} border-${dept.color} shadow`
-                                  : 'btn-outline-light border-light'
+                                  : "btn-outline-light border-light"
                               }`}
                               onClick={() => handleDepartmentSelect(dept.value)}
                               style={{
-                                transition: 'all 0.3s ease',
-                                borderRadius: '12px',
-                                backgroundColor: isSelected ? undefined : 'white'
+                                transition: "all 0.3s ease",
+                                borderRadius: "12px",
+                                backgroundColor: isSelected
+                                  ? undefined
+                                  : "white",
                               }}
                             >
                               <div className="d-flex align-items-center mb-2">
-                                <i className={`fa ${dept.icon} fa-2x me-3 ${
-                                  isSelected ? 'text-white' : `text-${dept.color}`
-                                }`}></i>
-                                <h5 className={`mb-0 ${isSelected ? 'text-white' : ''}`}>
+                                <i
+                                  className={`fa ${dept.icon} fa-2x me-3 ${
+                                    isSelected
+                                      ? "text-white"
+                                      : `text-${dept.color}`
+                                  }`}
+                                ></i>
+                                <h5
+                                  className={`mb-0 ${
+                                    isSelected ? "text-white" : ""
+                                  }`}
+                                >
                                   {dept.label}
                                 </h5>
                               </div>
@@ -1185,24 +1438,39 @@ export default function OutdoorCheckupPage() {
               )}
 
               {/* Step 3: Select Doctor */}
-              {step === 'doctor' && (
+              {step === "doctor" && (
                 <div className="card shadow-lg border-0">
-                  <div className="card-header bg-gradient-info text-white py-4" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                  <div
+                    className="card-header bg-gradient-info text-white py-4"
+                    style={{
+                      background:
+                        "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                    }}
+                  >
                     <h3 className="mb-0">
                       <i className="fa fa-user-md me-2"></i>
                       Chọn Bác Sĩ
                     </h3>
                     <small className="text-white-50">
-                      {departmentList.find(d => d.value === selectedDepartment)?.label}
-                      {selectedClinic && ` - ${clinics.find(c => c.id?.toString() === selectedClinic)?.name}`}
+                      {
+                        departmentList.find(
+                          (d) => d.value === selectedDepartment
+                        )?.label
+                      }
+                      {selectedClinic &&
+                        ` - ${
+                          clinics.find(
+                            (c) => c.id?.toString() === selectedClinic
+                          )?.name
+                        }`}
                     </small>
                   </div>
                   <div className="card-body p-4">
                     <button
                       className="btn btn-outline-secondary mb-4"
                       onClick={() => {
-                        setStep('department');
-                        setSelectedDoctor('');
+                        setStep("department");
+                        setSelectedDoctor("");
                         setDoctors([]);
                       }}
                     >
@@ -1216,16 +1484,16 @@ export default function OutdoorCheckupPage() {
                           <div>
                             <h5 className="mb-1">Không tìm thấy bác sĩ</h5>
                             <p className="mb-0 text-muted">
-                              {selectedClinic 
-                                ? 'Không có bác sĩ nào trong chuyên khoa này tại cơ sở đã chọn.'
-                                : 'Không có bác sĩ nào trong chuyên khoa này.'}
+                              {selectedClinic
+                                ? "Không có bác sĩ nào trong chuyên khoa này tại cơ sở đã chọn."
+                                : "Không có bác sĩ nào trong chuyên khoa này."}
                             </p>
                           </div>
                         </div>
                         <div className="d-flex gap-2 flex-wrap">
                           <button
                             className="btn btn-outline-primary"
-                            onClick={() => setStep('department')}
+                            onClick={() => setStep("department")}
                           >
                             <i className="fa fa-arrow-left me-2"></i>
                             Chọn chuyên khoa khác
@@ -1234,8 +1502,8 @@ export default function OutdoorCheckupPage() {
                             <button
                               className="btn btn-outline-secondary"
                               onClick={() => {
-                                setSelectedClinic('');
-                                setSelectedDoctor('');
+                                setSelectedClinic("");
+                                setSelectedDoctor("");
                               }}
                             >
                               Xem tất cả cơ sở
@@ -1246,31 +1514,54 @@ export default function OutdoorCheckupPage() {
                     ) : (
                       <div className="row g-4">
                         {doctors.map((doctor) => {
-                          const isSelected = selectedDoctor === doctor.id?.toString();
+                          const isSelected =
+                            selectedDoctor === doctor.id?.toString();
                           return (
                             <div key={doctor.id} className="col-md-6 col-lg-4">
-                              <div 
+                              <div
                                 className={`card h-100 border-2 ${
-                                  isSelected ? 'border-primary shadow-lg' : 'border-light shadow-sm'
+                                  isSelected
+                                    ? "border-primary shadow-lg"
+                                    : "border-light shadow-sm"
                                 }`}
                                 style={{
-                                  transition: 'all 0.3s ease',
-                                  borderRadius: '12px',
-                                  cursor: 'pointer'
+                                  transition: "all 0.3s ease",
+                                  borderRadius: "12px",
+                                  cursor: "pointer",
                                 }}
-                                onClick={() => handleDoctorSelect(doctor.id.toString())}
+                                onClick={() =>
+                                  handleDoctorSelect(doctor.id.toString())
+                                }
                               >
                                 <div className="card-body p-4">
                                   <div className="d-flex align-items-start mb-3">
-                                    <div className={`rounded-circle bg-${isSelected ? 'primary' : 'light'} text-${isSelected ? 'white' : 'primary'} d-flex align-items-center justify-content-center`}
-                                      style={{ width: '60px', height: '60px', minWidth: '60px' }}>
+                                    <div
+                                      className={`rounded-circle bg-${
+                                        isSelected ? "primary" : "light"
+                                      } text-${
+                                        isSelected ? "white" : "primary"
+                                      } d-flex align-items-center justify-content-center`}
+                                      style={{
+                                        width: "60px",
+                                        height: "60px",
+                                        minWidth: "60px",
+                                      }}
+                                    >
                                       <i className="fa fa-user-md fa-2x"></i>
                                     </div>
                                     <div className="ms-3 flex-grow-1">
-                                      <h5 className="mb-1">{doctor.user?.fullName || 'Bác sĩ'}</h5>
+                                      <h5 className="mb-1">
+                                        {doctor.user?.fullName || "Bác sĩ"}
+                                      </h5>
                                       <p className="text-muted small mb-2">
-                                        <i className={`fa fa-stethoscope me-1 text-${isSelected ? 'white-50' : 'muted'}`}></i>
-                                        {doctor.departmentDisplayName || doctor.department || doctor.specialization}
+                                        <i
+                                          className={`fa fa-stethoscope me-1 text-${
+                                            isSelected ? "white-50" : "muted"
+                                          }`}
+                                        ></i>
+                                        {doctor.departmentDisplayName ||
+                                          doctor.department ||
+                                          doctor.specialization}
                                       </p>
                                     </div>
                                   </div>
@@ -1283,11 +1574,18 @@ export default function OutdoorCheckupPage() {
                                   {doctor.experienceYears && (
                                     <p className="small mb-3">
                                       <i className="fa fa-calendar me-1"></i>
-                                      Kinh nghiệm: <strong>{doctor.experienceYears} năm</strong>
+                                      Kinh nghiệm:{" "}
+                                      <strong>
+                                        {doctor.experienceYears} năm
+                                      </strong>
                                     </p>
                                   )}
                                   <button
-                                    className={`btn w-100 ${isSelected ? 'btn-primary' : 'btn-outline-primary'}`}
+                                    className={`btn w-100 ${
+                                      isSelected
+                                        ? "btn-primary"
+                                        : "btn-outline-primary"
+                                    }`}
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       handleDoctorSelect(doctor.id.toString());
@@ -1295,11 +1593,13 @@ export default function OutdoorCheckupPage() {
                                   >
                                     {isSelected ? (
                                       <>
-                                        <i className="fa fa-check me-2"></i>Đã chọn
+                                        <i className="fa fa-check me-2"></i>Đã
+                                        chọn
                                       </>
                                     ) : (
                                       <>
-                                        <i className="fa fa-arrow-right me-2"></i>Chọn bác sĩ này
+                                        <i className="fa fa-arrow-right me-2"></i>
+                                        Chọn bác sĩ này
                                       </>
                                     )}
                                   </button>
@@ -1315,7 +1615,7 @@ export default function OutdoorCheckupPage() {
               )}
 
               {/* Step 3: Select Date & Time */}
-              {step === 'datetime' && (
+              {step === "datetime" && (
                 <div className="card shadow">
                   <div className="card-header bg-primary text-white">
                     <h3 className="mb-0">3️⃣ Select Date & Time</h3>
@@ -1323,82 +1623,114 @@ export default function OutdoorCheckupPage() {
                   <div className="card-body">
                     <button
                       className="btn btn-outline-secondary mb-3"
-                      onClick={() => setStep('doctor')}
+                      onClick={() => setStep("doctor")}
                     >
                       <i className="fa fa-arrow-left me-2"></i>Back
                     </button>
 
-                     {/* Week Navigation */}
-                     <div className="row mb-3">
-                       <div className="col-12">
-                         <div className="bg-light rounded p-4">
-                           <div className="d-flex justify-content-between align-items-center">
-                             <button
-                               type="button"
-                               className="btn btn-outline-primary"
-                               onClick={goToPreviousWeek}
-                               disabled={isLoadingBusySchedules}
-                             >
-                               <i className="fa fa-chevron-left me-2"></i>Tuần trước
-                             </button>
-                             <h6 className="mb-0">
-                               {isLoadingBusySchedules && (
-                                 <span className="spinner-border spinner-border-sm me-2" role="status"></span>
-                               )}
-                               {weekStart.toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric', year: 'numeric' })} - {' '}
-                               {weekDays[6].toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric', year: 'numeric' })}
-                             </h6>
-                             <button
-                               type="button"
-                               className="btn btn-outline-primary"
-                               onClick={goToNextWeek}
-                               disabled={isLoadingBusySchedules}
-                             >
-                               Tuần sau<i className="fa fa-chevron-right ms-2"></i>
-                             </button>
-                           </div>
-                         </div>
-                       </div>
-                     </div>
+                    {/* Week Navigation */}
+                    <div className="row mb-3">
+                      <div className="col-12">
+                        <div className="bg-light rounded p-4">
+                          <div className="d-flex justify-content-between align-items-center">
+                            <button
+                              type="button"
+                              className="btn btn-outline-primary"
+                              onClick={goToPreviousWeek}
+                              disabled={isLoadingBusySchedules}
+                            >
+                              <i className="fa fa-chevron-left me-2"></i>Tuần
+                              trước
+                            </button>
+                            <h6 className="mb-0">
+                              {isLoadingBusySchedules && (
+                                <span
+                                  className="spinner-border spinner-border-sm me-2"
+                                  role="status"
+                                ></span>
+                              )}
+                              {weekStart.toLocaleDateString("vi-VN", {
+                                day: "numeric",
+                                month: "numeric",
+                                year: "numeric",
+                              })}{" "}
+                              -{" "}
+                              {weekDays[6].toLocaleDateString("vi-VN", {
+                                day: "numeric",
+                                month: "numeric",
+                                year: "numeric",
+                              })}
+                            </h6>
+                            <button
+                              type="button"
+                              className="btn btn-outline-primary"
+                              onClick={goToNextWeek}
+                              disabled={isLoadingBusySchedules}
+                            >
+                              Tuần sau
+                              <i className="fa fa-chevron-right ms-2"></i>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
 
-                     {/* Error Message */}
-                     {errorMessage && (
-                       <div className="alert alert-danger" role="alert">
-                         <i className="fa fa-exclamation-circle me-2"></i>
-                         {errorMessage}
-                       </div>
-                     )}
+                    {/* Error Message */}
+                    {errorMessage && (
+                      <div className="alert alert-danger" role="alert">
+                        <i className="fa fa-exclamation-circle me-2"></i>
+                        {errorMessage}
+                      </div>
+                    )}
 
-                     {/* Success Message - Slot held */}
-                     {holdAppointmentId && selectedDate && selectedTime && (
-                       <div className="alert alert-info d-flex align-items-center" role="alert">
-                         <i className="fa fa-clock me-2"></i>
-                         <div>
-                           <strong>Đã giữ chỗ thành công!</strong> Lịch của bạn đã được giữ trong 5 phút. 
-                           Vui lòng hoàn tất thông tin và xác nhận trước khi hết hạn.
-                           <br />
-                           <small className="text-muted">
-                             Lịch đã chọn: {(() => {
-                               const [year, month, day] = selectedDate.split('-').map(Number);
-                               return new Date(year, month - 1, day).toLocaleDateString('vi-VN', {
-                                 weekday: 'long',
-                                 day: 'numeric',
-                                 month: 'numeric',
-                                 year: 'numeric',
-                               });
-                             })()} lúc {selectedTime}
-                           </small>
-                         </div>
-                       </div>
-                     )}
+                    {/* Success Message - Slot held */}
+                    {holdAppointmentId && selectedDate && selectedTime && (
+                      <div
+                        className="alert alert-info d-flex align-items-center"
+                        role="alert"
+                      >
+                        <i className="fa fa-clock me-2"></i>
+                        <div>
+                          <strong>Đã giữ chỗ thành công!</strong> Lịch của bạn
+                          đã được giữ trong 5 phút. Vui lòng hoàn tất thông tin
+                          và xác nhận trước khi hết hạn.
+                          <br />
+                          <small className="text-muted">
+                            Lịch đã chọn:{" "}
+                            {(() => {
+                              const [year, month, day] = selectedDate
+                                .split("-")
+                                .map(Number);
+                              return new Date(
+                                year,
+                                month - 1,
+                                day
+                              ).toLocaleDateString("vi-VN", {
+                                weekday: "long",
+                                day: "numeric",
+                                month: "numeric",
+                                year: "numeric",
+                              });
+                            })()}{" "}
+                            lúc {selectedTime}
+                          </small>
+                        </div>
+                      </div>
+                    )}
 
-                     {/* Loading indicator when holding slot */}
-                     {isHoldingSlot && (
-                       <div className="alert alert-warning d-flex align-items-center" role="alert">
-                         <span className="spinner-border spinner-border-sm me-2" role="status"></span>
-                         <span>Đang giữ chỗ...</span>
-                       </div>
-                     )}
+                    {/* Loading indicator when holding slot */}
+                    {isHoldingSlot && (
+                      <div
+                        className="alert alert-warning d-flex align-items-center"
+                        role="alert"
+                      >
+                        <span
+                          className="spinner-border spinner-border-sm me-2"
+                          role="status"
+                        ></span>
+                        <span>Đang giữ chỗ...</span>
+                      </div>
+                    )}
 
                     {/* Schedule Table */}
                     <div className="row mb-3">
@@ -1406,7 +1738,8 @@ export default function OutdoorCheckupPage() {
                         <div className="bg-light rounded p-4">
                           <style jsx>{`
                             @keyframes pulse {
-                              0%, 100% {
+                              0%,
+                              100% {
                                 opacity: 1;
                               }
                               50% {
@@ -1418,17 +1751,53 @@ export default function OutdoorCheckupPage() {
                             }
                           `}</style>
                           <div className="table-responsive">
-                            <table className="table table-bordered table-hover mb-0" style={{ fontSize: '0.9rem' }}>
-                              <thead className="table-light" style={{ backgroundColor: '#f8f9fa' }}>
+                            <table
+                              className="table table-bordered table-hover mb-0"
+                              style={{ fontSize: "0.9rem" }}
+                            >
+                              <thead
+                                className="table-light"
+                                style={{ backgroundColor: "#f8f9fa" }}
+                              >
                                 <tr>
-                                  <th style={{ width: '80px', textAlign: 'center', fontWeight: 'bold', padding: '12px' }}>
+                                  <th
+                                    style={{
+                                      width: "80px",
+                                      textAlign: "center",
+                                      fontWeight: "bold",
+                                      padding: "12px",
+                                    }}
+                                  >
                                     <i className="fa fa-clock me-1"></i>Giờ
                                   </th>
                                   {weekDays.map((date, index) => (
-                                    <th key={index} style={{ textAlign: 'center', minWidth: '120px', padding: '12px' }}>
-                                      <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{dayNames[index]}</div>
-                                      <div style={{ fontSize: '0.85rem', color: '#666', fontWeight: 'normal' }}>
-                                        {date.toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric' })}
+                                    <th
+                                      key={index}
+                                      style={{
+                                        textAlign: "center",
+                                        minWidth: "120px",
+                                        padding: "12px",
+                                      }}
+                                    >
+                                      <div
+                                        style={{
+                                          fontWeight: "bold",
+                                          marginBottom: "4px",
+                                        }}
+                                      >
+                                        {dayNames[index]}
+                                      </div>
+                                      <div
+                                        style={{
+                                          fontSize: "0.85rem",
+                                          color: "#666",
+                                          fontWeight: "normal",
+                                        }}
+                                      >
+                                        {date.toLocaleDateString("vi-VN", {
+                                          day: "numeric",
+                                          month: "numeric",
+                                        })}
                                       </div>
                                     </th>
                                   ))}
@@ -1437,66 +1806,94 @@ export default function OutdoorCheckupPage() {
                               <tbody>
                                 {hours.map((hour) => (
                                   <tr key={hour}>
-                                    <td className="text-center fw-bold" style={{ verticalAlign: 'middle' }}>
+                                    <td
+                                      className="text-center fw-bold"
+                                      style={{ verticalAlign: "middle" }}
+                                    >
                                       {hour}:00
                                     </td>
                                     {weekDays.map((date, dayIndex) => {
                                       const isBooked = isSlotBooked(date, hour);
-                                      const isSelected = isSlotSelected(date, hour);
+                                      const isSelected = isSlotSelected(
+                                        date,
+                                        hour
+                                      );
                                       const isPast = isPastTime(date, hour);
                                       const isDisabled = isPast || isBooked;
                                       const slotType = getSlotType(date, hour);
-                                      const busyInfo = getSlotBusyInfo(date, hour);
+                                      const busyInfo = getSlotBusyInfo(
+                                        date,
+                                        hour
+                                      );
 
                                       // Determine button class and color based on slot type
-                                      let btnClass = 'btn btn-sm';
-                                      let btnStyle: React.CSSProperties = { width: '100%', minHeight: '45px', position: 'relative' };
-                                      
+                                      let btnClass = "btn btn-sm";
+                                      let btnStyle: React.CSSProperties = {
+                                        width: "100%",
+                                        minHeight: "45px",
+                                        position: "relative",
+                                      };
+
                                       if (isSelected) {
-                                        btnClass += ' btn-primary';
+                                        btnClass += " btn-primary";
                                       } else if (isBooked) {
-                                        if (slotType === 'APPOINTMENT') {
-                                          btnClass += ' btn-danger';
-                                          btnStyle.background = 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)';
-                                          btnStyle.color = 'white';
-                                        } else if (slotType === 'HOLD') {
-                                          btnClass += ' btn-info pulse-animation';
-                                          btnStyle.background = 'linear-gradient(135deg, #17a2b8 0%, #138496 100%)';
-                                          btnStyle.color = 'white';
-                                        } else if (slotType === 'LEAVE') {
-                                          btnClass += ' btn-warning';
-                                          btnStyle.background = 'linear-gradient(135deg, #ffc107 0%, #e0a800 100%)';
-                                          btnStyle.color = 'white';
+                                        if (slotType === "APPOINTMENT") {
+                                          btnClass += " btn-danger";
+                                          btnStyle.background =
+                                            "linear-gradient(135deg, #dc3545 0%, #c82333 100%)";
+                                          btnStyle.color = "white";
+                                        } else if (slotType === "HOLD") {
+                                          btnClass +=
+                                            " btn-info pulse-animation";
+                                          btnStyle.background =
+                                            "linear-gradient(135deg, #17a2b8 0%, #138496 100%)";
+                                          btnStyle.color = "white";
+                                        } else if (slotType === "LEAVE") {
+                                          btnClass += " btn-warning";
+                                          btnStyle.background =
+                                            "linear-gradient(135deg, #ffc107 0%, #e0a800 100%)";
+                                          btnStyle.color = "white";
                                         } else {
-                                          btnClass += ' btn-danger';
+                                          btnClass += " btn-danger";
                                         }
                                       } else if (isPast) {
-                                        btnClass += ' btn-secondary';
+                                        btnClass += " btn-secondary";
                                         btnStyle.opacity = 0.5;
                                       } else {
-                                        btnClass += ' btn-outline-primary';
+                                        btnClass += " btn-outline-primary";
                                       }
 
                                       // Build tooltip text
-                                      let tooltipText = '';
+                                      let tooltipText = "";
                                       if (isPast) {
-                                        tooltipText = 'Lịch đã qua';
+                                        tooltipText = "Lịch đã qua";
                                       } else if (isBooked && busyInfo) {
-                                        const startTime = busyInfo.startDateTime 
-                                          ? new Date(busyInfo.startDateTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+                                        const startTime = busyInfo.startDateTime
+                                          ? new Date(
+                                              busyInfo.startDateTime
+                                            ).toLocaleTimeString("vi-VN", {
+                                              hour: "2-digit",
+                                              minute: "2-digit",
+                                            })
                                           : busyInfo.startDate;
-                                        const endTime = busyInfo.endDateTime 
-                                          ? new Date(busyInfo.endDateTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+                                        const endTime = busyInfo.endDateTime
+                                          ? new Date(
+                                              busyInfo.endDateTime
+                                            ).toLocaleTimeString("vi-VN", {
+                                              hour: "2-digit",
+                                              minute: "2-digit",
+                                            })
                                           : busyInfo.endDate;
-                                        
-                                        if (slotType === 'APPOINTMENT') {
-                                          tooltipText = '📅 Cuộc hẹn\n';
-                                        } else if (slotType === 'HOLD') {
-                                          tooltipText = '⏳ Đang giữ chỗ (5 phút)\n';
+
+                                        if (slotType === "APPOINTMENT") {
+                                          tooltipText = "📅 Cuộc hẹn\n";
+                                        } else if (slotType === "HOLD") {
+                                          tooltipText =
+                                            "⏳ Đang giữ chỗ (5 phút)\n";
                                         } else {
-                                          tooltipText = '🏖️ Nghỉ phép\n';
+                                          tooltipText = "🏖️ Nghỉ phép\n";
                                         }
-                                        
+
                                         if (startTime && endTime) {
                                           tooltipText += `Thời gian: ${startTime} - ${endTime}\n`;
                                         }
@@ -1504,26 +1901,43 @@ export default function OutdoorCheckupPage() {
                                           tooltipText += `Lý do: ${busyInfo.reason}`;
                                         }
                                       } else {
-                                        tooltipText = `Chọn ${dayNames[dayIndex]} ${date.toLocaleDateString('vi-VN')} lúc ${hour}:00`;
+                                        tooltipText = `Chọn ${
+                                          dayNames[dayIndex]
+                                        } ${date.toLocaleDateString(
+                                          "vi-VN"
+                                        )} lúc ${hour}:00`;
                                       }
 
                                       return (
-                                        <td key={dayIndex} style={{ padding: '4px', textAlign: 'center', position: 'relative' }}>
+                                        <td
+                                          key={dayIndex}
+                                          style={{
+                                            padding: "4px",
+                                            textAlign: "center",
+                                            position: "relative",
+                                          }}
+                                        >
                                           <button
                                             type="button"
                                             className={btnClass}
                                             style={btnStyle}
-                                            onClick={() => handleSlotSelection(date, hour)}
+                                            onClick={() =>
+                                              handleSlotSelection(date, hour)
+                                            }
                                             disabled={isDisabled}
                                             title={tooltipText}
-                                            data-bs-toggle={isBooked ? 'tooltip' : undefined}
+                                            data-bs-toggle={
+                                              isBooked ? "tooltip" : undefined
+                                            }
                                             data-bs-placement="top"
                                             data-bs-html="true"
                                             onMouseEnter={(e) => {
                                               if (isBooked && busyInfo) {
                                                 // Show custom tooltip on hover
-                                                const tooltip = document.createElement('div');
-                                                tooltip.className = 'custom-slot-tooltip';
+                                                const tooltip =
+                                                  document.createElement("div");
+                                                tooltip.className =
+                                                  "custom-slot-tooltip";
                                                 tooltip.style.cssText = `
                                                   position: absolute;
                                                   background: rgba(0, 0, 0, 0.9);
@@ -1537,72 +1951,174 @@ export default function OutdoorCheckupPage() {
                                                   box-shadow: 0 4px 6px rgba(0,0,0,0.3);
                                                   max-width: 250px;
                                                 `;
-                                                
-                                                const startTime = busyInfo.startDateTime 
-                                                  ? new Date(busyInfo.startDateTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
-                                                  : busyInfo.startDate;
-                                                const endTime = busyInfo.endDateTime 
-                                                  ? new Date(busyInfo.endDateTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
-                                                  : busyInfo.endDate;
-                                                
-                                                let typeLabel = '';
-                                                if (slotType === 'APPOINTMENT') {
-                                                  typeLabel = '📅 Cuộc hẹn';
-                                                } else if (slotType === 'HOLD') {
-                                                  typeLabel = '⏳ Đang giữ chỗ (5 phút)';
+
+                                                const startTime =
+                                                  busyInfo.startDateTime
+                                                    ? new Date(
+                                                        busyInfo.startDateTime
+                                                      ).toLocaleTimeString(
+                                                        "vi-VN",
+                                                        {
+                                                          hour: "2-digit",
+                                                          minute: "2-digit",
+                                                        }
+                                                      )
+                                                    : busyInfo.startDate;
+                                                const endTime =
+                                                  busyInfo.endDateTime
+                                                    ? new Date(
+                                                        busyInfo.endDateTime
+                                                      ).toLocaleTimeString(
+                                                        "vi-VN",
+                                                        {
+                                                          hour: "2-digit",
+                                                          minute: "2-digit",
+                                                        }
+                                                      )
+                                                    : busyInfo.endDate;
+
+                                                let typeLabel = "";
+                                                if (
+                                                  slotType === "APPOINTMENT"
+                                                ) {
+                                                  typeLabel = "📅 Cuộc hẹn";
+                                                } else if (
+                                                  slotType === "HOLD"
+                                                ) {
+                                                  typeLabel =
+                                                    "⏳ Đang giữ chỗ (5 phút)";
                                                 } else {
-                                                  typeLabel = '🏖️ Nghỉ phép';
+                                                  typeLabel = "🏖️ Nghỉ phép";
                                                 }
-                                                
+
                                                 tooltip.innerHTML = `
                                                   <div style="font-weight: bold; margin-bottom: 4px;">
                                                     ${typeLabel}
                                                   </div>
-                                                  ${startTime && endTime ? `<div style="margin-bottom: 4px;">⏰ ${startTime} - ${endTime}</div>` : ''}
-                                                  ${busyInfo.reason ? `<div style="font-size: 0.8rem; opacity: 0.9;">${busyInfo.reason}</div>` : ''}
+                                                  ${
+                                                    startTime && endTime
+                                                      ? `<div style="margin-bottom: 4px;">⏰ ${startTime} - ${endTime}</div>`
+                                                      : ""
+                                                  }
+                                                  ${
+                                                    busyInfo.reason
+                                                      ? `<div style="font-size: 0.8rem; opacity: 0.9;">${busyInfo.reason}</div>`
+                                                      : ""
+                                                  }
                                                 `;
-                                                
-                                                document.body.appendChild(tooltip);
-                                                const rect = e.currentTarget.getBoundingClientRect();
-                                                tooltip.style.left = `${rect.left + rect.width / 2 - tooltip.offsetWidth / 2}px`;
-                                                tooltip.style.top = `${rect.top - tooltip.offsetHeight - 8}px`;
-                                                
-                                                e.currentTarget.setAttribute('data-tooltip', 'true');
+
+                                                document.body.appendChild(
+                                                  tooltip
+                                                );
+                                                const rect =
+                                                  e.currentTarget.getBoundingClientRect();
+                                                tooltip.style.left = `${
+                                                  rect.left +
+                                                  rect.width / 2 -
+                                                  tooltip.offsetWidth / 2
+                                                }px`;
+                                                tooltip.style.top = `${
+                                                  rect.top -
+                                                  tooltip.offsetHeight -
+                                                  8
+                                                }px`;
+
+                                                e.currentTarget.setAttribute(
+                                                  "data-tooltip",
+                                                  "true"
+                                                );
                                               }
                                             }}
                                             onMouseLeave={(e) => {
-                                              const tooltip = document.querySelector('.custom-slot-tooltip');
+                                              const tooltip =
+                                                document.querySelector(
+                                                  ".custom-slot-tooltip"
+                                                );
                                               if (tooltip) {
                                                 tooltip.remove();
                                               }
                                             }}
                                           >
                                             {isBooked ? (
-                                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-                                                {slotType === 'APPOINTMENT' ? (
+                                              <div
+                                                style={{
+                                                  display: "flex",
+                                                  flexDirection: "column",
+                                                  alignItems: "center",
+                                                  gap: "2px",
+                                                }}
+                                              >
+                                                {slotType === "APPOINTMENT" ? (
                                                   <>
-                                                    <i className="fa fa-calendar-check" style={{ fontSize: '1rem' }}></i>
-                                                    <span style={{ fontSize: '0.7rem', fontWeight: 'bold' }}>Hẹn</span>
+                                                    <i
+                                                      className="fa fa-calendar-check"
+                                                      style={{
+                                                        fontSize: "1rem",
+                                                      }}
+                                                    ></i>
+                                                    <span
+                                                      style={{
+                                                        fontSize: "0.7rem",
+                                                        fontWeight: "bold",
+                                                      }}
+                                                    >
+                                                      Hẹn
+                                                    </span>
                                                   </>
-                                                ) : slotType === 'HOLD' ? (
+                                                ) : slotType === "HOLD" ? (
                                                   <>
-                                                    <i className="fa fa-clock" style={{ fontSize: '1rem' }}></i>
-                                                    <span style={{ fontSize: '0.7rem', fontWeight: 'bold' }}>Giữ</span>
+                                                    <i
+                                                      className="fa fa-clock"
+                                                      style={{
+                                                        fontSize: "1rem",
+                                                      }}
+                                                    ></i>
+                                                    <span
+                                                      style={{
+                                                        fontSize: "0.7rem",
+                                                        fontWeight: "bold",
+                                                      }}
+                                                    >
+                                                      Giữ
+                                                    </span>
                                                   </>
                                                 ) : (
                                                   <>
-                                                    <i className="fa fa-umbrella-beach" style={{ fontSize: '1rem' }}></i>
-                                                    <span style={{ fontSize: '0.7rem', fontWeight: 'bold' }}>Nghỉ</span>
+                                                    <i
+                                                      className="fa fa-umbrella-beach"
+                                                      style={{
+                                                        fontSize: "1rem",
+                                                      }}
+                                                    ></i>
+                                                    <span
+                                                      style={{
+                                                        fontSize: "0.7rem",
+                                                        fontWeight: "bold",
+                                                      }}
+                                                    >
+                                                      Nghỉ
+                                                    </span>
                                                   </>
                                                 )}
                                               </div>
                                             ) : isSelected ? (
                                               <>
                                                 <i className="fa fa-check-circle"></i>
-                                                <div style={{ fontSize: '0.7rem', marginTop: '2px' }}>Đã chọn</div>
+                                                <div
+                                                  style={{
+                                                    fontSize: "0.7rem",
+                                                    marginTop: "2px",
+                                                  }}
+                                                >
+                                                  Đã chọn
+                                                </div>
                                               </>
                                             ) : (
-                                              <span style={{ fontSize: '0.85rem' }}>Trống</span>
+                                              <span
+                                                style={{ fontSize: "0.85rem" }}
+                                              >
+                                                Trống
+                                              </span>
                                             )}
                                           </button>
                                         </td>
@@ -1625,79 +2141,119 @@ export default function OutdoorCheckupPage() {
                               </div>
                               <div className="col-md-6 col-lg-3">
                                 <div className="d-flex align-items-center gap-2">
-                                  <button className="btn btn-sm btn-outline-primary" disabled style={{ minWidth: '70px', minHeight: '35px' }}>
-                                    <span style={{ fontSize: '0.8rem' }}>Trống</span>
+                                  <button
+                                    className="btn btn-sm btn-outline-primary"
+                                    disabled
+                                    style={{
+                                      minWidth: "70px",
+                                      minHeight: "35px",
+                                    }}
+                                  >
+                                    <span style={{ fontSize: "0.8rem" }}>
+                                      Trống
+                                    </span>
                                   </button>
-                                  <span style={{ fontSize: '0.85rem' }}>Có thể đặt</span>
+                                  <span style={{ fontSize: "0.85rem" }}>
+                                    Có thể đặt
+                                  </span>
                                 </div>
                               </div>
                               <div className="col-md-6 col-lg-3">
                                 <div className="d-flex align-items-center gap-2">
-                                  <button className="btn btn-sm btn-primary" disabled style={{ minWidth: '70px', minHeight: '35px' }}>
+                                  <button
+                                    className="btn btn-sm btn-primary"
+                                    disabled
+                                    style={{
+                                      minWidth: "70px",
+                                      minHeight: "35px",
+                                    }}
+                                  >
                                     <i className="fa fa-check-circle"></i>
                                   </button>
-                                  <span style={{ fontSize: '0.85rem' }}>Đã chọn</span>
+                                  <span style={{ fontSize: "0.85rem" }}>
+                                    Đã chọn
+                                  </span>
                                 </div>
                               </div>
                               <div className="col-md-6 col-lg-3">
                                 <div className="d-flex align-items-center gap-2">
-                                  <button 
-                                    className="btn btn-sm btn-danger" 
-                                    disabled 
-                                    style={{ 
-                                      minWidth: '70px', 
-                                      minHeight: '35px',
-                                      background: 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)'
+                                  <button
+                                    className="btn btn-sm btn-danger"
+                                    disabled
+                                    style={{
+                                      minWidth: "70px",
+                                      minHeight: "35px",
+                                      background:
+                                        "linear-gradient(135deg, #dc3545 0%, #c82333 100%)",
                                     }}
                                   >
                                     <i className="fa fa-calendar-check"></i>
                                   </button>
-                                  <span style={{ fontSize: '0.85rem' }}>📅 Cuộc hẹn</span>
+                                  <span style={{ fontSize: "0.85rem" }}>
+                                    📅 Cuộc hẹn
+                                  </span>
                                 </div>
                               </div>
                               <div className="col-md-6 col-lg-3">
                                 <div className="d-flex align-items-center gap-2">
-                                  <button 
-                                    className="btn btn-sm btn-info" 
-                                    disabled 
-                                    style={{ 
-                                      minWidth: '70px', 
-                                      minHeight: '35px',
-                                      background: 'linear-gradient(135deg, #17a2b8 0%, #138496 100%)'
+                                  <button
+                                    className="btn btn-sm btn-info"
+                                    disabled
+                                    style={{
+                                      minWidth: "70px",
+                                      minHeight: "35px",
+                                      background:
+                                        "linear-gradient(135deg, #17a2b8 0%, #138496 100%)",
                                     }}
                                   >
                                     <i className="fa fa-clock"></i>
                                   </button>
-                                  <span style={{ fontSize: '0.85rem' }}>⏳ Đang giữ chỗ</span>
+                                  <span style={{ fontSize: "0.85rem" }}>
+                                    ⏳ Đang giữ chỗ
+                                  </span>
                                 </div>
                               </div>
                               <div className="col-md-6 col-lg-3">
                                 <div className="d-flex align-items-center gap-2">
-                                  <button 
-                                    className="btn btn-sm btn-warning" 
-                                    disabled 
-                                    style={{ 
-                                      minWidth: '70px', 
-                                      minHeight: '35px',
-                                      background: 'linear-gradient(135deg, #ffc107 0%, #e0a800 100%)'
+                                  <button
+                                    className="btn btn-sm btn-warning"
+                                    disabled
+                                    style={{
+                                      minWidth: "70px",
+                                      minHeight: "35px",
+                                      background:
+                                        "linear-gradient(135deg, #ffc107 0%, #e0a800 100%)",
                                     }}
                                   >
                                     <i className="fa fa-umbrella-beach"></i>
                                   </button>
-                                  <span style={{ fontSize: '0.85rem' }}>🏖️ Nghỉ phép</span>
+                                  <span style={{ fontSize: "0.85rem" }}>
+                                    🏖️ Nghỉ phép
+                                  </span>
                                 </div>
                               </div>
                               <div className="col-md-6 col-lg-3">
                                 <div className="d-flex align-items-center gap-2">
-                                  <button className="btn btn-sm btn-secondary" disabled style={{ minWidth: '70px', minHeight: '35px', opacity: 0.5 }}></button>
-                                  <span style={{ fontSize: '0.85rem' }}>Đã qua</span>
+                                  <button
+                                    className="btn btn-sm btn-secondary"
+                                    disabled
+                                    style={{
+                                      minWidth: "70px",
+                                      minHeight: "35px",
+                                      opacity: 0.5,
+                                    }}
+                                  ></button>
+                                  <span style={{ fontSize: "0.85rem" }}>
+                                    Đã qua
+                                  </span>
                                 </div>
                               </div>
                             </div>
                             <div className="mt-3 pt-3 border-top">
                               <small className="text-muted">
                                 <i className="fa fa-lightbulb me-1 text-warning"></i>
-                                <strong>Tip:</strong> Di chuột qua các slot bận để xem thông tin chi tiết
+                                <strong>Tip:</strong> Di chuột qua các slot bận
+                                để xem thông tin chi tiết
                               </small>
                             </div>
                           </div>
@@ -1706,38 +2262,47 @@ export default function OutdoorCheckupPage() {
                     </div>
 
                     {/* Selected Date and Time Display */}
-                    {selectedDate && selectedTime && (() => {
-                      // Parse selectedDate correctly (YYYY-MM-DD format)
-                      const [year, month, day] = selectedDate.split('-').map(Number);
-                      const selectedDateObj = new Date(year, month - 1, day);
-                      return (
-                        <div className="row mb-3">
-                          <div className="col-12">
-                            <div className="alert alert-info mb-0">
-                              <strong>Lịch đã chọn:</strong>{' '}
-                              {selectedDateObj.toLocaleDateString('vi-VN', {
-                                weekday: 'long',
-                                day: 'numeric',
-                                month: 'numeric',
-                                year: 'numeric',
-                              })}{' '}
-                              lúc {selectedTime}
+                    {selectedDate &&
+                      selectedTime &&
+                      (() => {
+                        // Parse selectedDate correctly (YYYY-MM-DD format)
+                        const [year, month, day] = selectedDate
+                          .split("-")
+                          .map(Number);
+                        const selectedDateObj = new Date(year, month - 1, day);
+                        return (
+                          <div className="row mb-3">
+                            <div className="col-12">
+                              <div className="alert alert-info mb-0">
+                                <strong>Lịch đã chọn:</strong>{" "}
+                                {selectedDateObj.toLocaleDateString("vi-VN", {
+                                  weekday: "long",
+                                  day: "numeric",
+                                  month: "numeric",
+                                  year: "numeric",
+                                })}{" "}
+                                lúc {selectedTime}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      );
-                    })()}
+                        );
+                      })()}
 
                     {/* Continue Button - Always visible */}
                     <div className="mt-4">
                       <button
                         className="btn btn-primary btn-lg w-100"
                         onClick={handleContinueDateTime}
-                        disabled={isHoldingSlot || !selectedDate || !selectedTime}
+                        disabled={
+                          isHoldingSlot || !selectedDate || !selectedTime
+                        }
                       >
                         {isHoldingSlot ? (
                           <>
-                            <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                            <span
+                              className="spinner-border spinner-border-sm me-2"
+                              role="status"
+                            ></span>
                             Đang giữ chỗ...
                           </>
                         ) : (
@@ -1759,15 +2324,16 @@ export default function OutdoorCheckupPage() {
               )}
 
               {/* Step 4: Patient Info */}
-              {step === 'info' && (
+              {step === "info" && (
                 <div className="card shadow">
                   <div className="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                     <h3 className="mb-0">4️⃣ Patient Information</h3>
                     {holdAppointmentId && timeRemaining > 0 && (
                       <div className="d-flex align-items-center">
                         <i className="fa fa-clock me-2"></i>
-                        <span style={{ fontSize: '1rem', fontWeight: 'bold' }}>
-                          {Math.floor(timeRemaining / 60)}:{(timeRemaining % 60).toString().padStart(2, '0')}
+                        <span style={{ fontSize: "1rem", fontWeight: "bold" }}>
+                          {Math.floor(timeRemaining / 60)}:
+                          {(timeRemaining % 60).toString().padStart(2, "0")}
                         </span>
                       </div>
                     )}
@@ -1776,8 +2342,8 @@ export default function OutdoorCheckupPage() {
                     <button
                       className="btn btn-outline-secondary mb-3"
                       onClick={async () => {
-                        setStep('datetime');
-                        setErrorMessage('');
+                        setStep("datetime");
+                        setErrorMessage("");
                         // Clear selected slot when back to datetime (user can select new slot)
                         // Don't clear holdAppointmentId - will be handled when selecting new slot
                         // Reload busy schedules when back to datetime step
@@ -1795,7 +2361,12 @@ export default function OutdoorCheckupPage() {
                           type="text"
                           className="form-control"
                           value={patientInfo.name}
-                          onChange={(e) => setPatientInfo({ ...patientInfo, name: e.target.value })}
+                          onChange={(e) =>
+                            setPatientInfo({
+                              ...patientInfo,
+                              name: e.target.value,
+                            })
+                          }
                           required
                         />
                       </div>
@@ -1805,7 +2376,12 @@ export default function OutdoorCheckupPage() {
                           type="email"
                           className="form-control"
                           value={patientInfo.email}
-                          onChange={(e) => setPatientInfo({ ...patientInfo, email: e.target.value })}
+                          onChange={(e) =>
+                            setPatientInfo({
+                              ...patientInfo,
+                              email: e.target.value,
+                            })
+                          }
                           required
                         />
                       </div>
@@ -1815,7 +2391,12 @@ export default function OutdoorCheckupPage() {
                           type="tel"
                           className="form-control"
                           value={patientInfo.phone}
-                          onChange={(e) => setPatientInfo({ ...patientInfo, phone: e.target.value })}
+                          onChange={(e) =>
+                            setPatientInfo({
+                              ...patientInfo,
+                              phone: e.target.value,
+                            })
+                          }
                           required
                         />
                       </div>
@@ -1825,21 +2406,35 @@ export default function OutdoorCheckupPage() {
                           type="number"
                           className="form-control"
                           value={patientInfo.age}
-                          onChange={(e) => setPatientInfo({ ...patientInfo, age: e.target.value })}
+                          onChange={(e) =>
+                            setPatientInfo({
+                              ...patientInfo,
+                              age: e.target.value,
+                            })
+                          }
                           min="1"
                           max="200"
                           required
                         />
-                        {patientInfo.age && (parseInt(patientInfo.age) < 1 || parseInt(patientInfo.age) > 200) && (
-                          <div className="text-danger small mt-1">Tuổi phải từ 1 đến 200</div>
-                        )}
+                        {patientInfo.age &&
+                          (parseInt(patientInfo.age) < 1 ||
+                            parseInt(patientInfo.age) > 200) && (
+                            <div className="text-danger small mt-1">
+                              Tuổi phải từ 1 đến 200
+                            </div>
+                          )}
                       </div>
                       <div className="col-md-3">
                         <label className="form-label">Gender *</label>
                         <select
                           className="form-select"
                           value={patientInfo.gender}
-                          onChange={(e) => setPatientInfo({ ...patientInfo, gender: e.target.value })}
+                          onChange={(e) =>
+                            setPatientInfo({
+                              ...patientInfo,
+                              gender: e.target.value,
+                            })
+                          }
                           required
                         >
                           <option value="">Select</option>
@@ -1849,12 +2444,19 @@ export default function OutdoorCheckupPage() {
                         </select>
                       </div>
                       <div className="col-12">
-                        <label className="form-label">Symptoms / Reason for visit *</label>
+                        <label className="form-label">
+                          Symptoms / Reason for visit *
+                        </label>
                         <textarea
                           className="form-control"
                           rows={3}
                           value={patientInfo.symptoms}
-                          onChange={(e) => setPatientInfo({ ...patientInfo, symptoms: e.target.value })}
+                          onChange={(e) =>
+                            setPatientInfo({
+                              ...patientInfo,
+                              symptoms: e.target.value,
+                            })
+                          }
                           placeholder="Describe your symptoms..."
                           required
                         ></textarea>
@@ -1870,15 +2472,17 @@ export default function OutdoorCheckupPage() {
                       <button
                         className="btn btn-primary btn-lg w-100"
                         onClick={handleInfoSubmit}
-                        disabled={
-                          !patientInfo.name || 
-                          !patientInfo.email || 
-                          !patientInfo.phone ||
-                          !patientInfo.age ||
-                          !patientInfo.gender ||
-                          !patientInfo.symptoms ||
-                          (patientInfo.age && (parseInt(patientInfo.age) < 1 || parseInt(patientInfo.age) > 200))
-                        }
+                        disabled={Boolean(
+                          !patientInfo.name ||
+                            !patientInfo.email ||
+                            !patientInfo.phone ||
+                            !patientInfo.age ||
+                            !patientInfo.gender ||
+                            !patientInfo.symptoms ||
+                            (patientInfo.age &&
+                              (parseInt(patientInfo.age) < 1 ||
+                                parseInt(patientInfo.age) > 200))
+                        )}
                       >
                         Continue to Confirm
                       </button>
@@ -1889,9 +2493,9 @@ export default function OutdoorCheckupPage() {
 
               {/* Time Expired Modal */}
               {showTimeExpiredModal && (
-                <div 
-                  className="modal show d-block" 
-                  style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}
+                <div
+                  className="modal show d-block"
+                  style={{ backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1050 }}
                   tabIndex={-1}
                   onClick={(e) => {
                     if (e.target === e.currentTarget) {
@@ -1899,7 +2503,10 @@ export default function OutdoorCheckupPage() {
                     }
                   }}
                 >
-                  <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
+                  <div
+                    className="modal-dialog modal-dialog-centered"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <div className="modal-content">
                       <div className="modal-header bg-danger text-white">
                         <h5 className="modal-title">
@@ -1921,26 +2528,33 @@ export default function OutdoorCheckupPage() {
                             // Cancel the expired appointment
                             if (holdAppointmentId) {
                               try {
-                                const appointmentApi = getAppointmentManagement();
-                                await appointmentApi.updateAppointmentStatus(holdAppointmentId, {
-                                  status: 'CANCELLED'
-                                });
+                                const appointmentApi =
+                                  getAppointmentManagement();
+                                await appointmentApi.updateAppointmentStatus(
+                                  holdAppointmentId,
+                                  {
+                                    status: "CANCELLED",
+                                  }
+                                );
                               } catch (error) {
-                                console.warn('Error cancelling expired appointment:', error);
+                                console.warn(
+                                  "Error cancelling expired appointment:",
+                                  error
+                                );
                               }
                             }
-                            
+
                             // Reset states
                             setHoldAppointmentId(null);
                             setHoldStartTime(null);
-                            setSelectedDate('');
-                            setSelectedTime('');
+                            setSelectedDate("");
+                            setSelectedTime("");
                             setShowTimeExpiredModal(false);
                             setTimeRemaining(300);
-                            
+
                             // Go back to datetime step
-                            setStep('datetime');
-                            
+                            setStep("datetime");
+
                             // Reload busy schedules
                             if (selectedDoctor) {
                               await loadBusySchedules(Number(selectedDoctor));
@@ -1957,7 +2571,7 @@ export default function OutdoorCheckupPage() {
               )}
 
               {/* Step 5: Confirm */}
-              {step === 'confirm' && (
+              {step === "confirm" && (
                 <div className="card shadow">
                   <div className="card-header bg-success text-white">
                     <h3 className="mb-0">5️⃣ Confirm Appointment</h3>
@@ -1965,14 +2579,41 @@ export default function OutdoorCheckupPage() {
                   <div className="card-body">
                     <div className="alert alert-info">
                       <h5>Thông tin lịch hẹn</h5>
-                      <p><strong>Chuyên khoa:</strong> {departmentList.find(d => d.value === selectedDepartment)?.label}</p>
-                      <p><strong>Bác sĩ:</strong> {doctors.find(d => d.id?.toString() === selectedDoctor)?.user?.fullName}</p>
-                      <p><strong>Date:</strong> {(() => {
-                        const [year, month, day] = selectedDate.split('-').map(Number);
-                        return new Date(year, month - 1, day).toLocaleDateString('vi-VN');
-                      })()}</p>
-                      <p><strong>Time:</strong> {selectedTime}</p>
-                      <p><strong>Patient:</strong> {patientInfo.name}</p>
+                      <p>
+                        <strong>Chuyên khoa:</strong>{" "}
+                        {
+                          departmentList.find(
+                            (d) => d.value === selectedDepartment
+                          )?.label
+                        }
+                      </p>
+                      <p>
+                        <strong>Bác sĩ:</strong>{" "}
+                        {
+                          doctors.find(
+                            (d) => d.id?.toString() === selectedDoctor
+                          )?.user?.fullName
+                        }
+                      </p>
+                      <p>
+                        <strong>Date:</strong>{" "}
+                        {(() => {
+                          const [year, month, day] = selectedDate
+                            .split("-")
+                            .map(Number);
+                          return new Date(
+                            year,
+                            month - 1,
+                            day
+                          ).toLocaleDateString("vi-VN");
+                        })()}
+                      </p>
+                      <p>
+                        <strong>Time:</strong> {selectedTime}
+                      </p>
+                      <p>
+                        <strong>Patient:</strong> {patientInfo.name}
+                      </p>
                     </div>
                     <div className="d-grid gap-2">
                       <button
@@ -1982,20 +2623,24 @@ export default function OutdoorCheckupPage() {
                       >
                         {isCreatingAppointment ? (
                           <>
-                            <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                            <span
+                              className="spinner-border spinner-border-sm me-2"
+                              role="status"
+                            ></span>
                             Đang đặt lịch...
                           </>
                         ) : (
                           <>
-                            <i className="fa fa-check me-2"></i>Confirm Appointment
+                            <i className="fa fa-check me-2"></i>Confirm
+                            Appointment
                           </>
                         )}
                       </button>
                       <button
                         className="btn btn-outline-secondary"
                         onClick={() => {
-                          setStep('info');
-                          setErrorMessage('');
+                          setStep("info");
+                          setErrorMessage("");
                         }}
                         disabled={isCreatingAppointment}
                       >
@@ -2013,42 +2658,73 @@ export default function OutdoorCheckupPage() {
               )}
 
               {/* Step 6: Appointment Detail */}
-              {step === 'detail' && (
+              {step === "detail" && (
                 <div className="card shadow">
-                  <div className={`card-header text-white ${
-                    appointmentStatus === 'CONFIRMED' ? 'bg-success' :
-                    appointmentStatus === 'PENDING' ? 'bg-warning' :
-                    appointmentStatus === 'REJECTED' || appointmentStatus === 'EXPIRED' ? 'bg-danger' :
-                    'bg-info'
-                  }`}>
+                  <div
+                    className={`card-header text-white ${
+                      appointmentStatus === "CONFIRMED"
+                        ? "bg-success"
+                        : appointmentStatus === "PENDING"
+                        ? "bg-warning"
+                        : appointmentStatus === "REJECTED" ||
+                          appointmentStatus === "EXPIRED"
+                        ? "bg-danger"
+                        : "bg-info"
+                    }`}
+                  >
                     <h3 className="mb-0">
-                      {appointmentStatus === 'CONFIRMED' && '✅ Lịch hẹn đã được xác nhận'}
-                      {appointmentStatus === 'PENDING' && '⏳ Đang chờ bác sĩ xác nhận'}
-                      {appointmentStatus === 'REJECTED' && '❌ Lịch hẹn đã bị từ chối'}
-                      {appointmentStatus === 'EXPIRED' && '⏰ Lịch hẹn đã hết hạn'}
-                      {!['CONFIRMED', 'PENDING', 'REJECTED', 'EXPIRED'].includes(appointmentStatus) && '📅 Thông tin lịch hẹn'}
+                      {appointmentStatus === "CONFIRMED" &&
+                        "✅ Lịch hẹn đã được xác nhận"}
+                      {appointmentStatus === "PENDING" &&
+                        "⏳ Đang chờ bác sĩ xác nhận"}
+                      {appointmentStatus === "REJECTED" &&
+                        "❌ Lịch hẹn đã bị từ chối"}
+                      {appointmentStatus === "EXPIRED" &&
+                        "⏰ Lịch hẹn đã hết hạn"}
+                      {![
+                        "CONFIRMED",
+                        "PENDING",
+                        "REJECTED",
+                        "EXPIRED",
+                      ].includes(appointmentStatus) && "📅 Thông tin lịch hẹn"}
                     </h3>
                   </div>
                   <div className="card-body">
-                    {appointmentStatus === 'CONFIRMED' && (
+                    {appointmentStatus === "CONFIRMED" && (
                       <div className="alert alert-success">
-                        <h5><i className="fa fa-check-circle me-2"></i>Mã lịch hẹn: {appointmentId}</h5>
-                        <p className="mb-0">Lịch hẹn của bạn đã được bác sĩ xác nhận thành công!</p>
-                        <p className="mt-2 mb-0"><strong>Vui lòng đến đúng giờ hẹn.</strong></p>
+                        <h5>
+                          <i className="fa fa-check-circle me-2"></i>Mã lịch
+                          hẹn: {appointmentId}
+                        </h5>
+                        <p className="mb-0">
+                          Lịch hẹn của bạn đã được bác sĩ xác nhận thành công!
+                        </p>
+                        <p className="mt-2 mb-0">
+                          <strong>Vui lòng đến đúng giờ hẹn.</strong>
+                        </p>
                       </div>
                     )}
-                    
-                    {appointmentStatus === 'PENDING' && (
+
+                    {appointmentStatus === "PENDING" && (
                       <div className="alert alert-warning">
-                        <h5><i className="fa fa-clock me-2"></i>Mã lịch hẹn: {appointmentId}</h5>
-                        <p className="mb-2">Lịch hẹn của bạn đang chờ bác sĩ xác nhận.</p>
+                        <h5>
+                          <i className="fa fa-clock me-2"></i>Mã lịch hẹn:{" "}
+                          {appointmentId}
+                        </h5>
+                        <p className="mb-2">
+                          Lịch hẹn của bạn đang chờ bác sĩ xác nhận.
+                        </p>
                         <p className="mb-0">
                           <small>
                             <i className="fa fa-info-circle me-1"></i>
-                            Hệ thống sẽ tự động thông báo khi bác sĩ xác nhận hoặc từ chối lịch hẹn.
+                            Hệ thống sẽ tự động thông báo khi bác sĩ xác nhận
+                            hoặc từ chối lịch hẹn.
                             {isCheckingStatus && (
                               <span className="ms-2">
-                                <span className="spinner-border spinner-border-sm me-1" role="status"></span>
+                                <span
+                                  className="spinner-border spinner-border-sm me-1"
+                                  role="status"
+                                ></span>
                                 Đang kiểm tra trạng thái...
                               </span>
                             )}
@@ -2056,54 +2732,93 @@ export default function OutdoorCheckupPage() {
                         </p>
                       </div>
                     )}
-                    
-                    {appointmentStatus === 'REJECTED' && (
+
+                    {appointmentStatus === "REJECTED" && (
                       <div className="alert alert-danger">
-                        <h5><i className="fa fa-times-circle me-2"></i>Mã lịch hẹn: {appointmentId}</h5>
-                        <p className="mb-2">Rất tiếc, lịch hẹn của bạn đã bị từ chối.</p>
+                        <h5>
+                          <i className="fa fa-times-circle me-2"></i>Mã lịch
+                          hẹn: {appointmentId}
+                        </h5>
+                        <p className="mb-2">
+                          Rất tiếc, lịch hẹn của bạn đã bị từ chối.
+                        </p>
                         <p className="mb-0">
-                          <strong>Lý do:</strong> Bác sĩ không khả dụng vào thời điểm này. Vui lòng chọn lịch khác hoặc bác sĩ khác.
+                          <strong>Lý do:</strong> Bác sĩ không khả dụng vào thời
+                          điểm này. Vui lòng chọn lịch khác hoặc bác sĩ khác.
                         </p>
                       </div>
                     )}
-                    
-                    {appointmentStatus === 'EXPIRED' && (
+
+                    {appointmentStatus === "EXPIRED" && (
                       <div className="alert alert-danger">
-                        <h5><i className="fa fa-clock me-2"></i>Mã lịch hẹn: {appointmentId}</h5>
+                        <h5>
+                          <i className="fa fa-clock me-2"></i>Mã lịch hẹn:{" "}
+                          {appointmentId}
+                        </h5>
                         <p className="mb-2">Lịch hẹn của bạn đã hết hạn.</p>
                         <p className="mb-0">
-                          <strong>Lý do:</strong> Bác sĩ không phản hồi trong thời gian quy định. Vui lòng chọn lịch khác hoặc bác sĩ khác.
+                          <strong>Lý do:</strong> Bác sĩ không phản hồi trong
+                          thời gian quy định. Vui lòng chọn lịch khác hoặc bác
+                          sĩ khác.
                         </p>
                       </div>
                     )}
-                    
+
                     <div className="mt-3">
                       <h6>Thông tin lịch hẹn:</h6>
                       <ul className="list-unstyled">
-                        <li><strong>Chuyên khoa:</strong> {departmentList.find(d => d.value === selectedDepartment)?.label}</li>
-                        <li><strong>Bác sĩ:</strong> {doctors.find(d => d.id?.toString() === selectedDoctor)?.user?.fullName}</li>
-                        <li><strong>Ngày:</strong> {(() => {
-                          const [year, month, day] = selectedDate.split('-').map(Number);
-                          return new Date(year, month - 1, day).toLocaleDateString('vi-VN');
-                        })()}</li>
-                        <li><strong>Giờ:</strong> {selectedTime}</li>
-                        <li><strong>Bệnh nhân:</strong> {patientInfo.name}</li>
+                        <li>
+                          <strong>Chuyên khoa:</strong>{" "}
+                          {
+                            departmentList.find(
+                              (d) => d.value === selectedDepartment
+                            )?.label
+                          }
+                        </li>
+                        <li>
+                          <strong>Bác sĩ:</strong>{" "}
+                          {
+                            doctors.find(
+                              (d) => d.id?.toString() === selectedDoctor
+                            )?.user?.fullName
+                          }
+                        </li>
+                        <li>
+                          <strong>Ngày:</strong>{" "}
+                          {(() => {
+                            const [year, month, day] = selectedDate
+                              .split("-")
+                              .map(Number);
+                            return new Date(
+                              year,
+                              month - 1,
+                              day
+                            ).toLocaleDateString("vi-VN");
+                          })()}
+                        </li>
+                        <li>
+                          <strong>Giờ:</strong> {selectedTime}
+                        </li>
+                        <li>
+                          <strong>Bệnh nhân:</strong> {patientInfo.name}
+                        </li>
                       </ul>
                     </div>
-                    
+
                     <div className="mt-4 d-grid gap-2">
-                      {(appointmentStatus === 'REJECTED' || appointmentStatus === 'EXPIRED') && (
+                      {(appointmentStatus === "REJECTED" ||
+                        appointmentStatus === "EXPIRED") && (
                         <button
                           className="btn btn-primary"
                           onClick={() => {
                             // Reset and go back to department selection
-                            setStep('department');
-                            setSelectedDepartment('');
-                            setSelectedDoctor('');
-                            setSelectedDate('');
-                            setSelectedTime('');
-                            setAppointmentId('');
-                            setAppointmentStatus('PENDING');
+                            setStep("department");
+                            setSelectedDepartment("");
+                            setSelectedDoctor("");
+                            setSelectedDate("");
+                            setSelectedTime("");
+                            setAppointmentId("");
+                            setAppointmentStatus("PENDING");
                             setShowRejectedModal(false);
                             setShowExpiredModal(false);
                           }}
@@ -2114,7 +2829,7 @@ export default function OutdoorCheckupPage() {
                       )}
                       <button
                         className="btn btn-outline-primary"
-                        onClick={() => router.push('/dashboard')}
+                        onClick={() => router.push("/dashboard")}
                       >
                         <i className="fa fa-home me-2"></i>
                         Về Dashboard
@@ -2126,9 +2841,9 @@ export default function OutdoorCheckupPage() {
 
               {/* Rejected Modal */}
               {showRejectedModal && (
-                <div 
-                  className="modal show d-block" 
-                  style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}
+                <div
+                  className="modal show d-block"
+                  style={{ backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1050 }}
                   tabIndex={-1}
                   onClick={(e) => {
                     if (e.target === e.currentTarget) {
@@ -2136,7 +2851,10 @@ export default function OutdoorCheckupPage() {
                     }
                   }}
                 >
-                  <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
+                  <div
+                    className="modal-dialog modal-dialog-centered"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <div className="modal-content">
                       <div className="modal-header bg-danger text-white">
                         <h5 className="modal-title">
@@ -2153,7 +2871,8 @@ export default function OutdoorCheckupPage() {
                         <i className="fa fa-exclamation-triangle fa-4x text-danger mb-3"></i>
                         <h5>Lịch hẹn của bạn đã bị từ chối</h5>
                         <p className="text-muted">
-                          Bác sĩ không khả dụng vào thời điểm này. Vui lòng chọn lịch khác hoặc bác sĩ khác.
+                          Bác sĩ không khả dụng vào thời điểm này. Vui lòng chọn
+                          lịch khác hoặc bác sĩ khác.
                         </p>
                       </div>
                       <div className="modal-footer">
@@ -2161,13 +2880,13 @@ export default function OutdoorCheckupPage() {
                           className="btn btn-primary w-100"
                           onClick={() => {
                             setShowRejectedModal(false);
-                            setStep('department');
-                            setSelectedDepartment('');
-                            setSelectedDoctor('');
-                            setSelectedDate('');
-                            setSelectedTime('');
-                            setAppointmentId('');
-                            setAppointmentStatus('PENDING');
+                            setStep("department");
+                            setSelectedDepartment("");
+                            setSelectedDoctor("");
+                            setSelectedDate("");
+                            setSelectedTime("");
+                            setAppointmentId("");
+                            setAppointmentStatus("PENDING");
                           }}
                         >
                           <i className="fa fa-calendar me-2"></i>
@@ -2181,9 +2900,9 @@ export default function OutdoorCheckupPage() {
 
               {/* Expired Modal */}
               {showExpiredModal && (
-                <div 
-                  className="modal show d-block" 
-                  style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}
+                <div
+                  className="modal show d-block"
+                  style={{ backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1050 }}
                   tabIndex={-1}
                   onClick={(e) => {
                     if (e.target === e.currentTarget) {
@@ -2191,7 +2910,10 @@ export default function OutdoorCheckupPage() {
                     }
                   }}
                 >
-                  <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
+                  <div
+                    className="modal-dialog modal-dialog-centered"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <div className="modal-content">
                       <div className="modal-header bg-warning text-dark">
                         <h5 className="modal-title">
@@ -2208,7 +2930,8 @@ export default function OutdoorCheckupPage() {
                         <i className="fa fa-hourglass-end fa-4x text-warning mb-3"></i>
                         <h5>Lịch hẹn của bạn đã hết hạn</h5>
                         <p className="text-muted">
-                          Bác sĩ không phản hồi trong thời gian quy định (2 giờ). Vui lòng chọn lịch khác hoặc bác sĩ khác.
+                          Bác sĩ không phản hồi trong thời gian quy định (2
+                          giờ). Vui lòng chọn lịch khác hoặc bác sĩ khác.
                         </p>
                       </div>
                       <div className="modal-footer">
@@ -2216,13 +2939,13 @@ export default function OutdoorCheckupPage() {
                           className="btn btn-primary w-100"
                           onClick={() => {
                             setShowExpiredModal(false);
-                            setStep('department');
-                            setSelectedDepartment('');
-                            setSelectedDoctor('');
-                            setSelectedDate('');
-                            setSelectedTime('');
-                            setAppointmentId('');
-                            setAppointmentStatus('PENDING');
+                            setStep("department");
+                            setSelectedDepartment("");
+                            setSelectedDoctor("");
+                            setSelectedDate("");
+                            setSelectedTime("");
+                            setAppointmentId("");
+                            setAppointmentStatus("PENDING");
                           }}
                         >
                           <i className="fa fa-calendar me-2"></i>
@@ -2243,4 +2966,3 @@ export default function OutdoorCheckupPage() {
     </>
   );
 }
-

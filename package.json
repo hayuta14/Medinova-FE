@@ -18,7 +18,8 @@
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "tempusdominus-bootstrap-4": "^5.1.2",
-    "waypoints": "^4.0.1"
+    "waypoints": "^4.0.1",
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "@types/jquery": "^3.5.29",
